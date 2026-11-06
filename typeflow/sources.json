@@ -1,0 +1,48 @@
+{
+  "formatVersion": 1,
+  "packages": [
+    {
+      "id": "librime", "version": "1.17.0", "commit": "33e7814",
+      "file": "rime-1.17.0-clang-x64.7z",
+      "url": "https://github.com/rime/librime/releases/download/1.17.0/rime-33e7814-Windows-clang-x64.7z",
+      "sha256": "f850177bb2d256574348258f221730dbf3d358a53dbeca4bd49cdc338d927438",
+      "license": "BSD-3-Clause; release includes upstream plugins; see THIRD_PARTY_NOTICES.md"
+    },
+    {
+      "id": "rime-deps", "version": "1.17.0-clang-x64",
+      "file": "rime-deps-1.17.0-clang-x64.7z",
+      "url": "https://github.com/rime/librime/releases/download/1.17.0/rime-deps-33e7814-Windows-clang-x64.7z",
+      "sha256": "4a494d253b886bcba6eb2fde22eae74940b75f25db7612e6f99a53317995c952",
+      "license": "Multiple upstream licenses; local development runtime only"
+    },
+    {
+      "id": "luna-pinyin", "commit": "56b934b099dfbeab842320f13aa8b461a6ab3e42",
+      "file": "luna-pinyin-pinned.zip",
+      "url": "https://codeload.github.com/rime/rime-luna-pinyin/zip/56b934b099dfbeab842320f13aa8b461a6ab3e42",
+      "sha256": "96f96206361a9f5e9ec5af7f102cb1c6b04e3f394746150e5fa62ae87290f9c2", "license": "LGPL-3.0"
+    },
+    {
+      "id": "prelude", "commit": "082425ea0684bca36474415d4a0e8db9b016487e",
+      "file": "prelude-pinned.zip",
+      "url": "https://codeload.github.com/rime/rime-prelude/zip/082425ea0684bca36474415d4a0e8db9b016487e",
+      "sha256": "624be6ea2a2abbf743d9c69c6e9ad4784932f36abd0922a655af38710e1c8695", "license": "LGPL-3.0"
+    },
+    {
+      "id": "essay", "commit": "054920de4f54c9e5994276a96a4fc2a35cb51aa3",
+      "file": "essay-pinned.zip",
+      "url": "https://codeload.github.com/rime/rime-essay/zip/054920de4f54c9e5994276a96a4fc2a35cb51aa3",
+      "sha256": "f1ed067efee9d13d53ac6b1bdc3a57873d48fcd375cdbda0e9c2ef0d79158bac", "license": "LGPL-3.0"
+    },
+    {
+      "id": "weasel", "version": "0.17.4", "commit": "9cc96e20dc71b80876b12f689bb5863c76c2a7ed",
+      "file": "weasel-0.17.4.zip", "optional": true,
+      "url": "https://codeload.github.com/rime/weasel/zip/refs/tags/0.17.4",
+      "sha256": "becda44927a96e9662fc1aca4d5df344c300efc0aded9b48e0f6c685072e067b", "license": "GPL-3.0"
+    }
+  ],
+  "testFixture": {
+    "path": "../test/ssf/尼古喵喵！.ssf",
+    "sha256": "7d7ed80e39481bf754839ef9ea802798751c0e550c3a54ee4e2055cad3a0347d",
+    "origin": "User-supplied local test fixture; artwork redistribution permission not declared"
+  }
+}

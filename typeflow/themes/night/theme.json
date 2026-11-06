@@ -1,0 +1,10 @@
+{
+  "formatVersion": 1,
+  "id": "typeflow.night",
+  "name": "夜航",
+  "author": "TypeFlow",
+  "units": "dip",
+  "text": { "fontFamily": "Microsoft YaHei UI", "fontSize": 17, "color": "#FFE5EAF5", "preeditColor": "#FF9CAAC1" },
+  "background": { "mode": "solid", "color": "#FF1F2736" },
+  "selection": { "textColor": "#FFFFFFFF", "backgroundColor": "#FF4A67A8" }
+}

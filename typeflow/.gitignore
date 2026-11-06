@@ -1,0 +1,6 @@
+**/bin/
+**/obj/
+build/
+runtime/
+rime-data/
+workspace/

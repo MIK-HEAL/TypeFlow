@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/TypeFlow.Core/TypeFlow.Core.csproj" />
+    <ProjectReference Include="../../src/TypeFlow.Importers.Ssf/TypeFlow.Importers.Ssf.csproj" />
+  </ItemGroup>
+</Project>

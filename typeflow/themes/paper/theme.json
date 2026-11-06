@@ -1,0 +1,11 @@
+{
+  "formatVersion": 1,
+  "id": "typeflow.paper",
+  "name": "纸间",
+  "author": "TypeFlow",
+  "units": "dip",
+  "layout": { "padding": { "left": 14, "top": 10, "right": 14, "bottom": 10 }, "candidateGap": 14 },
+  "text": { "fontFamily": "Microsoft YaHei UI", "fontSize": 17, "color": "#FF343D42", "preeditColor": "#FF757F85" },
+  "background": { "mode": "solid", "color": "#FFFFFDF6" },
+  "selection": { "textColor": "#FFFFFFFF", "backgroundColor": "#FF567C71" }
+}

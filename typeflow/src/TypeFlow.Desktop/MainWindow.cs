@@ -1,0 +1,134 @@
+using System.IO;
+using System.Text.Json;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using Microsoft.Win32;
+using TypeFlow.Core;
+using TypeFlow.Engine.Rime;
+
+namespace TypeFlow.Desktop;
+
+public sealed class MainWindow : Window
+{
+    private readonly ThemeLibrary library;
+    private readonly CandidateSurface surface = new();
+    private readonly ListBox themes = new();
+    private readonly TextBox report = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new(0), Background = Brushes.Transparent, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    private readonly TextBox editor = new() { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, FontSize = 18, MinHeight = 110, Padding = new(12) };
+    private readonly TextBlock engineStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 6, 0, 10) };
+    private IInputEngine? engine;
+    private bool chinese = true;
+    private string selected = "";
+    public MainWindow(ThemeLibrary library, string productRoot)
+    {
+        this.library = library;
+        Title = "TypeFlow · 皮肤与输入实验室"; Width = 1120; Height = 780; MinWidth = 800; MinHeight = 600;
+        FontFamily = new("Microsoft YaHei UI"); FontSize = 14; Background = new SolidColorBrush(Color.FromRgb(244, 246, 250));
+        var layout = new DockPanel { Margin = new(24) }; Content = layout;
+        var heading = new TextBlock { Text = "TypeFlow", FontSize = 30, FontWeight = FontWeights.SemiBold };
+        DockPanel.SetDock(heading, Dock.Top); layout.Children.Add(heading);
+        var subtitle = new TextBlock { Text = "导入皮肤，预览外观，再试一段输入。", Foreground = Brushes.DimGray, Margin = new(0, 4, 0, 20) };
+        DockPanel.SetDock(subtitle, Dock.Top); layout.Children.Add(subtitle);
+        var sidebar = new DockPanel { Width = 230, Margin = new(0, 0, 22, 0) }; DockPanel.SetDock(sidebar, Dock.Left); layout.Children.Add(sidebar);
+        var actions = new StackPanel(); DockPanel.SetDock(actions, Dock.Bottom); sidebar.Children.Add(actions);
+        AddButton(actions, "导入 SSF…", async () =>
+        {
+            var dialog = new OpenFileDialog { Filter = "搜狗皮肤 (*.ssf)|*.ssf|所有文件|*.*" };
+            if (dialog.ShowDialog(this) == true) await Import(dialog.FileName);
+        });
+        AddButton(actions, "导入原生皮肤目录…", async () =>
+        {
+            var dialog = new OpenFolderDialog(); if (dialog.ShowDialog(this) == true) await Import(dialog.FolderName);
+        });
+        AddButton(actions, "应用到候选窗", () => Guard(() => { library.Activate(selected); report.Text += "\n已应用。输入会话保持不变。"; }));
+        AddButton(actions, "高级布局自定义…", () => Guard(() =>
+        {
+            var window = new LayoutEditorWindow(library, selected, engine?.View ?? Program.Demo) { Owner = this };
+            window.Saved += (path, apply) => { Reload(); Load(path); if (apply) library.Activate(path); };
+            window.ShowDialog();
+        }));
+        AddButton(actions, "恢复默认皮肤", () => Guard(() => { Load(library.DefaultDirectory); library.Activate(library.DefaultDirectory); }));
+        AddButton(actions, "删除导入的皮肤", () => Guard(() => { library.Delete(selected); Reload(); Load(library.ActiveDirectory); }));
+        sidebar.Children.Add(themes); themes.SelectionChanged += (_, _) => { if (themes.SelectedItem is ThemeItem item) Guard(() => Load(item.Directory)); };
+        var main = new Grid(); layout.Children.Add(main);
+        main.RowDefinitions.Add(new() { Height = new GridLength(260) }); main.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        main.RowDefinitions.Add(new() { Height = GridLength.Auto }); main.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
+        var preview = new Border { Background = Brushes.White, CornerRadius = new(12), Padding = new(18), Margin = new(0, 0, 0, 16) };
+        preview.Child = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = new Border { Child = surface, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center } };
+        main.Children.Add(preview);
+        var inputPanel = new StackPanel(); Grid.SetRow(inputPanel, 1); main.Children.Add(inputPanel);
+        inputPanel.Children.Add(new TextBlock { Text = "输入测试区", FontSize = 17, FontWeight = FontWeights.SemiBold });
+        inputPanel.Children.Add(engineStatus); inputPanel.Children.Add(editor);
+        var helpers = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 10, 0, 10) }; Grid.SetRow(helpers, 2); main.Children.Add(helpers);
+        AddButton(helpers, "中 / 英", () => { chinese = !chinese; engine?.Clear(); surface.SetView(engine?.View ?? Program.Demo); UpdateStatus(); });
+        AddButton(helpers, "显示预览文字", () => surface.SetView(Program.Demo));
+        var zoom = new ComboBox { ItemsSource = new[] { "100%", "150%", "200%" }, SelectedIndex = 0, Margin = new(12, 4, 0, 4), MinWidth = 90 };
+        zoom.SelectionChanged += (_, _) => { var s = new[] { 1.0, 1.5, 2.0 }[zoom.SelectedIndex]; surface.LayoutTransform = new ScaleTransform(s, s); }; helpers.Children.Add(zoom);
+        Grid.SetRow(report, 3); main.Children.Add(report);
+        Reload();
+        try { Load(library.ActiveDirectory); }
+        catch (Exception e) when (e is IOException or InvalidDataException or FormatException or NotSupportedException or ArgumentException or JsonException)
+        { Load(library.DefaultDirectory); report.Text += "\n上次皮肤无法加载，已恢复默认：" + e.Message; }
+        surface.SetView(Program.Demo);
+        var dll = Path.Combine(productRoot, "runtime/rime.dll");
+        if (File.Exists(dll)) Guard(() => engine = new RimeEngine(dll, Path.Combine(productRoot, "rime-data"), Path.Combine(library.Root, "rime-user"), "luna_pinyin_simp"));
+        UpdateStatus();
+        InputMethod.SetIsInputMethodEnabled(editor, false);
+        editor.PreviewKeyDown += KeyDown;
+        surface.CandidateSelected += i => { if (engine != null && i < engine.View.Candidates.Count) Guard(() => Apply(engine.SelectCandidate(i))); editor.Focus(); };
+        Closed += (_, _) => engine?.Dispose();
+        AllowDrop = true; DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
+        Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length == 1) await Import(files[0]); };
+    }
+    private void UpdateStatus() => engineStatus.Text = engine == null ? "引擎尚未加载；当前展示皮肤预览。运行时准备方式见 README。" : $"Rime 真实输入 · {(chinese ? "中文" : "英文")} · 空格选词 / 数字选词 / Esc 取消 / PageUp、PageDown 翻页";
+    private static void AddButton(Panel parent, string label, Action action)
+    {
+        var button = new Button { Content = label, Padding = new(10, 7, 10, 7), Margin = new(0, 4, 6, 4) };
+        button.Click += (_, _) => action(); parent.Children.Add(button);
+    }
+    private async Task Import(string source)
+    {
+        try { var result = await Task.Run(() => library.Import(source)); Reload(); Load(result.ThemeDirectory); }
+        catch (Exception e) { MessageBox.Show(this, e.Message, "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning); }
+    }
+    private void Guard(Action action) { try { action(); } catch (Exception e) { MessageBox.Show(this, e.Message, "TypeFlow", MessageBoxButton.OK, MessageBoxImage.Warning); } }
+    private void Reload() => themes.ItemsSource = library.List().Select(x => new ThemeItem(x.Directory, x.Theme.Name)).ToArray();
+    private void Load(string directory)
+    {
+        var theme = ThemeFiles.Load(Path.Combine(directory, "theme.json"));
+        surface.SetTheme(theme, directory); selected = directory;
+        var file = Path.Combine(directory, "import-report.json");
+        report.Text = $"{theme.Name} · {theme.Author}\n{theme.License}\n";
+        if (File.Exists(file))
+        {
+            var r = JsonSerializer.Deserialize<ImportReport>(File.ReadAllText(file), ThemeFiles.Json)!;
+            report.Text += $"兼容程度：{r.Compatibility}\n" + string.Join("\n", r.Diagnostics.Select(x => "• " + x.Message));
+        }
+    }
+    private new void KeyDown(object sender, KeyEventArgs e)
+    {
+        if (engine == null || !chinese || (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) != 0) return;
+        var key = e.Key;
+        int code = key switch
+        {
+            >= Key.A and <= Key.Z => 'a' + key - Key.A,
+            >= Key.D0 and <= Key.D9 => '0' + key - Key.D0,
+            Key.Space => 32, Key.Back => 0xff08, Key.Escape => 0xff1b, Key.Return => 0xff0d,
+            Key.Left => 0xff51, Key.Right => 0xff53, Key.Up => 0xff52, Key.Down => 0xff54,
+            Key.PageUp => 0xff55, Key.PageDown => 0xff56, Key.OemQuotes => 39,
+            _ => 0
+        };
+        if (code == 0) return;
+        if (key is >= Key.A and <= Key.Z && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) code = char.ToUpperInvariant((char)code);
+        Guard(() => { var result = engine.ProcessKey(code); Apply(result); e.Handled = result.Handled; });
+    }
+    private void Apply(KeyResult result)
+    {
+        if (result.Commit.Length != 0) { editor.SelectedText = result.Commit; editor.CaretIndex = editor.SelectionStart + result.Commit.Length; editor.SelectionLength = 0; }
+        surface.SetView(result.View);
+    }
+    private sealed record ThemeItem(string Directory, string Name) { public override string ToString() => Name; }
+}
