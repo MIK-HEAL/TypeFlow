@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory)][string]$AssetsFile,
     [Parameter(Mandatory)][string]$DepsFile,
     [Parameter(Mandatory)][string]$Destination,
-    [Parameter(Mandatory)][string]$RuntimeVersion
+    [Parameter(Mandatory)][string]$RuntimeVersion,
+    [string[]]$AdditionalPackages = @()
 )
 $ErrorActionPreference = 'Stop'
 $product = Split-Path $PSScriptRoot -Parent
@@ -13,6 +14,7 @@ $licenseRoot = Join-Path $Destination 'licenses'
 New-Item -ItemType Directory -Path $licenseRoot -Force | Out-Null
 $packages = @($deps.libraries.GetEnumerator() | Where-Object { $_.Value.type -eq 'package' } | ForEach-Object Key)
 $packages += "Microsoft.NETCore.App.Runtime.win-x64/$RuntimeVersion"
+$packages += $AdditionalPackages
 $inventory = @(foreach ($key in ($packages | Sort-Object -Unique)) {
     $id, $version = $key -split '/', 2
     if ($id -notmatch '^[A-Za-z0-9_.-]+$' -or $version -notmatch '^[A-Za-z0-9.+_-]+$') { throw "Invalid package identity: $key" }

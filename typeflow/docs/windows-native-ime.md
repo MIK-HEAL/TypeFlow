@@ -1,6 +1,8 @@
 # Windows 原生输入法预览
 
-这条路线复用 Weasel 0.17.4 的 TSF、IPC、Rime 服务和原生候选窗，先完成跨应用输入。它与皮肤工作台独立；本轮未接入 TypeFlow 的高级图层渲染。
+这条路线复用 Weasel 0.17.4 的 TSF、IPC 和 Rime 服务。Alpha.2 已接入可选的 TypeFlow 皮肤候选窗，原生候选窗负责回退；输入和上屏始终由原生前端处理。
+
+已有 Windows 安装预览包，终端用户可通过安装向导完成注册和初始化，见 [安装包说明](windows-ime-installer.md)。下文手动脚本用于原生开发与诊断。
 
 ## 构建
 
@@ -41,7 +43,9 @@ pwsh -NoProfile -File typeflow/integration/weasel/Manage-NativePreview.ps1 -Acti
 
 ## 配置与验收
 
-原生候选窗使用成熟的 Rime/Weasel YAML 配置方式。部署后可以在用户目录维护 `default.custom.yaml`、`weasel.custom.yaml`；修改后运行预览目录中的 `TypeFlowImeDeployer.exe /deploy`。这不等于已把 TypeFlow 的 SSF 导入或高级皮肤图层接入原生候选窗。
+原生候选窗使用 Rime/Weasel YAML 配置。TypeFlow 自定义皮肤从开始菜单的“皮肤设置”或输入法设置菜单进入，支持导入 SSF、原生皮肤、编辑布局和关联配置。选择后点击“应用到系统输入法”或“立即重载配置”，会应用当前选择并切换到 TypeFlow。可随时切回原生候选窗。
+
+皮肤与选择保存在 `%LOCALAPPDATA%\TypeFlow\Skins`，关闭设置窗口不会退出候选渲染后台。当前自定义候选窗使用键盘选词，暂不转发鼠标选词。原生配置仍可在输入法用户目录维护 `default.custom.yaml`、`weasel.custom.yaml`，修改后重新部署。
 
 系统验收需在记事本和浏览器中逐项验证：拼音组合、候选显示、空格/数字选词、中文上屏、退格、Esc、中英文切换、跨应用焦点和候选位置；后续覆盖 32 位应用、DPI、多屏与服务重启。工作台文本框、IPC 探针、构建成功都不能替代这些验收。
 

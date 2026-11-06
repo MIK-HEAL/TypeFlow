@@ -13,4 +13,8 @@
     <ProjectReference Include="../TypeFlow.Themes/TypeFlow.Themes.csproj" />
     <ProjectReference Include="../TypeFlow.Rendering.Wpf/TypeFlow.Rendering.Wpf.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../themes/paper/theme.json" Link="themes/paper/theme.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../themes/night/theme.json" Link="themes/night/theme.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

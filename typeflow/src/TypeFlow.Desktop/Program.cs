@@ -15,8 +15,16 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        Console.OutputEncoding = new System.Text.UTF8Encoding(false);
         try
         {
+            if (args is ["--background"]) return InstalledSkinApp.Run("background");
+            if (args is ["--settings"]) return InstalledSkinApp.Run("settings");
+            if (args is ["--stop-host"]) return InstalledSkinApp.Run("stop");
+            if (args is ["--host-status"]) return InstalledSkinApp.Run("status");
+            if (args is ["--native-candidates"]) return InstalledSkinApp.Run("native");
+            if (args is ["--apply-system-theme", var themeSource]) return InstalledSkinApp.Run("apply", themeSource);
+            if (args.Length == 0 && File.Exists(Path.Combine(AppContext.BaseDirectory, "..", "TypeFlowImeServer.exe"))) return InstalledSkinApp.Run("settings");
             if (args is ["--validate", var config])
             {
                 var model = ThemeFiles.Load(config);

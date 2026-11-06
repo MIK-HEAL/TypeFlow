@@ -8,6 +8,9 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <functional>
+#include <commctrl.h>
+#include <chrono>
 
 namespace typeflow {
 class Endpoint {
@@ -19,6 +22,17 @@ class Endpoint {
     { std::lock_guard<std::mutex> lock(mutex_); stop_ = true; }
     changed_.notify_one();
     if (worker_.joinable()) worker_.join();
+  }
+  // All window callbacks execute on the native UI thread. The transport thread
+  // only posts a notification after the host acknowledges a rendered frame.
+  void Attach(HWND window, std::function<void()> refresh) {
+    Detach(); refresh_ = std::move(refresh); window_ = window;
+    SetWindowSubclass(window, WindowProc, 0x5446, reinterpret_cast<DWORD_PTR>(this));
+  }
+  void Detach() {
+    HWND old = window_.exchange(nullptr);
+    if (old) RemoveWindowSubclass(old, WindowProc, 0x5446);
+    refresh_ = nullptr;
   }
   template<class Context> bool Update(const Context& ctx, bool composing) {
     const auto& menu = ctx.cinfo;
@@ -72,33 +86,53 @@ class Endpoint {
         ",\"view\":" + view_ + "}\n";
     if (pending_.size() > 65536) pending_ = "{\"visible\":false}\n";
   }
+  static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM w, LPARAM l, UINT_PTR id, DWORD_PTR data) {
+    auto* endpoint = reinterpret_cast<Endpoint*>(data);
+    if (message == WM_APP + 0x544) { if (endpoint->refresh_) endpoint->refresh_(); return 0; }
+    if (message == WM_NCDESTROY) { endpoint->window_ = nullptr; endpoint->refresh_ = nullptr; RemoveWindowSubclass(window, WindowProc, id); }
+    return DefSubclassProc(window, message, w, l);
+  }
+  void Connected(bool value) {
+    if (connected_.exchange(value) != value) {
+      if (HWND window = window_.load()) PostMessageW(window, WM_APP + 0x544, 0, 0);
+    }
+  }
+  static bool Transfer(HANDLE pipe, void* data, DWORD size, bool read) {
+    OVERLAPPED operation{};
+    operation.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!operation.hEvent) return false;
+    DWORD count = 0;
+    BOOL success = read ? ReadFile(pipe, data, size, &count, &operation) : WriteFile(pipe, data, size, &count, &operation);
+    if (!success && GetLastError() == ERROR_IO_PENDING) {
+      if (WaitForSingleObject(operation.hEvent, 150) != WAIT_OBJECT_0) CancelIoEx(pipe, &operation);
+      success = GetOverlappedResult(pipe, &operation, &count, TRUE);
+    }
+    CloseHandle(operation.hEvent);
+    return success && count == size;
+  }
   void Run() {
     DWORD session = 0; ProcessIdToSessionId(GetCurrentProcessId(), &session);
     const auto name = L"\\\\.\\pipe\\TypeFlow.Weasel.v1." + std::to_wstring(session);
     HANDLE pipe = INVALID_HANDLE_VALUE;
+    std::string last;
     while (true) {
       std::string message;
       {
         std::unique_lock<std::mutex> lock(mutex_);
-        changed_.wait(lock, [this] { return stop_ || !pending_.empty(); });
+        changed_.wait_for(lock, std::chrono::milliseconds(250), [this] { return stop_ || !pending_.empty(); });
         if (stop_) break;
         message.swap(pending_);
+        if (message.empty()) message = last;
       }
+      if (message.empty()) continue;
+      last = message;
       if (pipe == INVALID_HANDLE_VALUE)
-        pipe = CreateFileW(name.c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
+        pipe = CreateFileW(name.c_str(), GENERIC_WRITE | GENERIC_READ, 0, nullptr, OPEN_EXISTING,
             FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr);
-      if (pipe == INVALID_HANDLE_VALUE) { connected_ = false; continue; }
-      OVERLAPPED operation{};
-      operation.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-      if (!operation.hEvent) { CloseHandle(pipe); pipe = INVALID_HANDLE_VALUE; connected_ = false; continue; }
-      DWORD written = 0;
-      BOOL success = WriteFile(pipe, message.data(), static_cast<DWORD>(message.size()), &written, &operation);
-      if (!success && GetLastError() == ERROR_IO_PENDING) {
-        if (WaitForSingleObject(operation.hEvent, 100) != WAIT_OBJECT_0) CancelIoEx(pipe, &operation);
-        success = GetOverlappedResult(pipe, &operation, &written, TRUE);
-      }
-      CloseHandle(operation.hEvent);
-      connected_ = success && written == message.size();
+      if (pipe == INVALID_HANDLE_VALUE) { Connected(false); continue; }
+      char acknowledged = 0;
+      Connected(Transfer(pipe, message.data(), static_cast<DWORD>(message.size()), false) &&
+          Transfer(pipe, &acknowledged, 1, true) && acknowledged == '1');
       if (!connected_) { CloseHandle(pipe); pipe = INVALID_HANDLE_VALUE; }
     }
     if (pipe != INVALID_HANDLE_VALUE) CloseHandle(pipe);
@@ -110,6 +144,8 @@ class Endpoint {
   RECT rect_{};
   std::string view_ = "null", pending_;
   std::atomic<bool> connected_{false};
+  std::atomic<HWND> window_{nullptr};
+  std::function<void()> refresh_;
   std::thread worker_;
 };
 }

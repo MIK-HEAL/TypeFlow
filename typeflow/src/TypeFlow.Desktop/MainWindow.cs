@@ -30,18 +30,25 @@ public sealed class MainWindow : Window
     private string reportBase = "";
     private bool reloading;
     private bool configFailed;
-    public MainWindow(ThemeLibrary library, string productRoot)
+    private readonly Action<bool>? systemMode;
+    private readonly Func<bool>? systemModeEnabled;
+    public MainWindow(ThemeLibrary library, string productRoot, Action<bool>? systemMode = null, Func<bool>? systemModeEnabled = null)
     {
         this.library = library;
-        Title = "TypeFlow · 皮肤与输入实验室"; Width = 1120; Height = 780; MinWidth = 800; MinHeight = 600;
+        this.systemMode = systemMode; this.systemModeEnabled = systemModeEnabled;
+        Title = systemMode == null ? "TypeFlow · 皮肤与输入实验室" : "TypeFlow · 皮肤设置";
+        Width = Math.Min(1120, SystemParameters.WorkArea.Width - 32); Height = Math.Min(780, SystemParameters.WorkArea.Height - 32);
+        MinWidth = 800; MinHeight = 600; WindowStartupLocation = WindowStartupLocation.CenterScreen;
         FontFamily = new("Microsoft YaHei UI"); FontSize = 14; Background = new SolidColorBrush(Color.FromRgb(244, 246, 250));
         var layout = new DockPanel { Margin = new(24) }; Content = layout;
         var heading = new TextBlock { Text = "TypeFlow", FontSize = 30, FontWeight = FontWeights.SemiBold };
         DockPanel.SetDock(heading, Dock.Top); layout.Children.Add(heading);
-        var subtitle = new TextBlock { Text = "导入皮肤，预览外观，再试一段输入。", Foreground = Brushes.DimGray, Margin = new(0, 4, 0, 20) };
+        var subtitle = new TextBlock { Text = systemMode == null ? "导入皮肤，预览外观，再试一段输入。" : "导入或选择皮肤，点击应用后即可用于系统输入。", Foreground = Brushes.DimGray, Margin = new(0, 4, 0, 20) };
         DockPanel.SetDock(subtitle, Dock.Top); layout.Children.Add(subtitle);
         var sidebar = new DockPanel { Width = 230, Margin = new(0, 0, 22, 0) }; DockPanel.SetDock(sidebar, Dock.Left); layout.Children.Add(sidebar);
-        var actions = new StackPanel(); DockPanel.SetDock(actions, Dock.Bottom); sidebar.Children.Add(actions);
+        var actions = new StackPanel();
+        var actionScroll = new ScrollViewer { Content = actions, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        DockPanel.SetDock(actionScroll, Dock.Bottom); sidebar.Children.Add(actionScroll);
         AddButton(actions, "导入 SSF…", async () =>
         {
             var dialog = new OpenFileDialog { Filter = "搜狗皮肤 (*.ssf)|*.ssf|所有文件|*.*" };
@@ -65,15 +72,16 @@ public sealed class MainWindow : Window
             start.ArgumentList.Add("/select," + library.ConfigFile(selected)); Process.Start(start);
         });
         configButton.ContextMenu.Items.Add(locate);
-        AddButton(actions, "立即重载配置", () => PollConfiguration(true));
-        AddButton(actions, "应用到候选窗", () => Guard(() => { library.Activate(selected); report.Text += "\n已应用。输入会话保持不变。"; }));
+        AddButton(actions, "立即重载配置", () => { PollConfiguration(true); if (systemMode != null && !configFailed) Guard(() => ApplyTheme(selected)); });
+        AddButton(actions, systemMode == null ? "应用到候选窗" : "应用到系统输入法", () => Guard(() => ApplyTheme(selected)));
         AddButton(actions, "高级布局自定义…", () => Guard(() =>
         {
             var window = new LayoutEditorWindow(library, selected, engine?.View ?? Program.Demo) { Owner = this };
-            window.Saved += (path, apply) => { Reload(); Load(path); if (apply) library.Activate(path); };
+            window.Saved += (path, apply) => { Reload(); Load(path); if (apply) ApplyTheme(path); };
             window.ShowDialog();
         }));
-        AddButton(actions, "恢复默认皮肤", () => Guard(() => { Load(library.DefaultDirectory); library.Activate(library.DefaultDirectory); }));
+        AddButton(actions, "恢复默认皮肤", () => Guard(() => { Load(library.DefaultDirectory); ApplyTheme(library.DefaultDirectory); }));
+        if (systemMode != null) AddButton(actions, "使用系统原生候选窗", () => Guard(() => { systemMode(false); UpdateStatus(); report.Text += "\n已切换为原生候选窗，导入的皮肤仍保留。"; }));
         AddButton(actions, "删除导入的皮肤", () => Guard(() => { library.Delete(selected); Reload(); Load(library.ActiveDirectory); }));
         sidebar.Children.Add(themes); themes.SelectionChanged += (_, _) => { if (!reloading && themes.SelectedItem is ThemeItem item) Guard(() => Load(item.Directory)); };
         var main = new Grid(); layout.Children.Add(main);
@@ -100,15 +108,23 @@ public sealed class MainWindow : Window
         var dll = Path.Combine(productRoot, "runtime/rime.dll");
         if (File.Exists(dll)) Guard(() => engine = new RimeEngine(dll, Path.Combine(productRoot, "rime-data"), Path.Combine(library.Root, "rime-user"), "luna_pinyin_simp"));
         UpdateStatus();
-        InputMethod.SetIsInputMethodEnabled(editor, false);
-        editor.PreviewKeyDown += KeyDown;
+        InputMethod.SetIsInputMethodEnabled(editor, systemMode != null);
+        if (systemMode == null) editor.PreviewKeyDown += KeyDown;
         surface.CandidateSelected += i => { if (engine != null && i < engine.View.Candidates.Count) Guard(() => Apply(engine.SelectCandidate(i))); editor.Focus(); };
         configTimer.Tick += (_, _) => PollConfiguration(); configTimer.Start();
         Closed += (_, _) => { configTimer.Stop(); engine?.Dispose(); };
         AllowDrop = true; DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length == 1) await Import(files[0]); };
     }
-    private void UpdateStatus() => engineStatus.Text = engine == null ? "引擎尚未加载；当前展示皮肤预览。运行时准备方式见 README。" : $"Rime 真实输入 · {(chinese ? "中文" : "英文")} · 空格选词 / 数字选词 / Esc 取消 / PageUp、PageDown 翻页";
+    private void UpdateStatus() => engineStatus.Text = systemMode != null
+        ? $"{(systemModeEnabled?.Invoke() == true ? "正在使用自定义皮肤" : "正在使用原生候选窗")} · 下方可直接试打，上方为皮肤示例。"
+        : engine == null ? "引擎尚未加载；当前展示皮肤预览。运行时准备方式见 README。" : $"Rime 真实输入 · {(chinese ? "中文" : "英文")} · 空格选词 / 数字选词 / Esc 取消 / PageUp、PageDown 翻页";
+    private void ApplyTheme(string directory)
+    {
+        library.Validator.Validate(ThemeFiles.Load(Path.Combine(directory, "theme.json")), directory);
+        library.Activate(directory); systemMode?.Invoke(true); UpdateStatus();
+        report.Text += systemMode == null ? "\n已应用。输入会话保持不变。" : "\n已应用到系统输入法。关闭设置窗口后皮肤仍生效。";
+    }
     private static Button AddButton(Panel parent, string label, Action action)
     {
         var button = new Button { Content = label, Padding = new(10, 7, 10, 7), Margin = new(0, 4, 6, 4) };

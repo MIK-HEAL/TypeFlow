@@ -51,14 +51,8 @@ if ($BuildBoostOnly) { return }
 $source = & (Join-Path $PSScriptRoot 'Prepare-NativeSource.ps1')
 $source = [string]($source | Select-Object -Last 1)
 $source = $source.Trim()
-# These two resource scripts only need Windows resource constants, not MFC.
-# winres.h is supplied by the Windows SDK already used by the project.
-foreach ($resource in @('WeaselTSF/WeaselTSF.rc','WeaselServer/WeaselServer.rc','WeaselSetup/WeaselSetup.rc','WeaselDeployer/WeaselDeployer.rc')) {
-    $path = Join-Path $source $resource
-    $text = [IO.File]::ReadAllText($path).Replace('afxres.h', 'winres.h').Replace('VALUE "FileVersion", FILE_VERSION', 'VALUE "FileVersion", STRZ(FILE_VERSION)')
-    if (-not $text.Contains('#pragma code_page(65001)')) { $text = "#pragma code_page(65001)`n" + $text }
-    [IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))
-}
+& (Join-Path $PSScriptRoot 'Apply-NativeBuildFixes.ps1') -Source $source
+& (Join-Path $PSScriptRoot 'Apply-Bridge.ps1') -WeaselSource $source
 $reference = Join-Path $repoRoot '.cache/typeflow/reference'
 $include = Join-Path $source 'librime/include'
 $null = New-Item -ItemType Directory -Path $include -Force

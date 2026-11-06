@@ -10,6 +10,11 @@ foreach ($forbidden in @('L"\\weasel"','SetRegKeyValue(HKEY_LOCAL_MACHINE, WEASE
     if ($setup.Contains($forbidden)) { throw "Unsafe upstream setup operation remains: $forbidden" }
 }
 if (-not $setup.Contains('if (exitCode != 0) return 1;')) { throw 'Registration exit code must be checked.' }
+$uninstallStart = $setup.IndexOf('int uninstall_ime_file(')
+$uninstall = $setup.Substring($uninstallStart, $setup.IndexOf('// 注册IME输入法', $uninstallStart) - $uninstallStart)
+if ($uninstall.IndexOf('retval += func(imePath, false, true, false, false, silent);') -lt $uninstall.IndexOf('Wow64DisableWow64FsRedirection')) { throw '64-bit unregister must run after disabling WOW64 redirection.' }
+$ui = [IO.File]::ReadAllText((Join-Path $Source 'WeaselUI/WeaselUI.cpp'))
+if (-not $ui.Contains('TypeFlowEndpoint.h') -or -not $ui.Contains('Endpoint::Instance().Attach')) { throw 'Missing skin renderer integration or recovery hook.' }
 $server = [IO.File]::ReadAllText((Join-Path $Source 'WeaselServer/WeaselServerApp.cpp'))
 if ($server.Contains('  win_sparkle_init();')) { throw 'Preview must not activate upstream auto-update.' }
 $files = [ordered]@{
@@ -54,7 +59,7 @@ $manifest = [ordered]@{
     Product = 'TypeFlow IME Preview'; PreparedAt = [DateTimeOffset]::UtcNow.ToString('o')
     Source = $Source; ServiceClsid = $marker.ServiceClsid; ProfileGuid = $marker.ProfileGuid
     RegistryKey = $marker.RegistryKey; UserData = '%LOCALAPPDATA%\TypeFlow\Ime'
-    Renderer = 'Upstream Weasel native candidate window'
+    Renderer = 'TypeFlow optional skin host with upstream native candidate fallback'
     BinaryArchitectureChecked = $true; RegistrationExecuted = $false; SystemInputVerified = $false
     Files = @(Get-ChildItem -LiteralPath $stage -File | Where-Object Extension -in @('.dll','.exe') | ForEach-Object {
         [ordered]@{ Name = $_.Name; Machine = ('0x{0:x4}' -f (Get-PeMachine $_.FullName)); Sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }

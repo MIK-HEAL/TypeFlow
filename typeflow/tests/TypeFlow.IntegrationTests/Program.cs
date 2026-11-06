@@ -71,7 +71,7 @@ internal static class Program
             File.WriteAllText(Path.Combine(library.Root, "active.json"), "\"../escape\"");
             Check(library.ActiveDirectory == library.DefaultDirectory, "invalid active config falls back");
             using (var pipe = new NamedPipeServerStream("TypeFlow.Weasel.v1." + Process.GetCurrentProcess().SessionId,
-                PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly))
+                PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly))
             using (var sender = Process.Start(new ProcessStartInfo(Path.Combine(repo, "typeflow/build/native/Release/typeflow_endpoint_smoke.exe"))
                 { UseShellExecute = false, CreateNoWindow = true })!)
             using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
@@ -84,6 +84,7 @@ internal static class Program
                     var line = reader.ReadLineAsync(timeout.Token).AsTask().GetAwaiter().GetResult();
                     if (line == null) throw new Exception("Endpoint disconnected without presentation data.");
                     message = JsonSerializer.Deserialize<CandidatePresentation>(line, ThemeFiles.Json);
+                    pipe.WriteByte((byte)'1'); pipe.Flush();
                 }
                 File.WriteAllText(Path.Combine(evidence, "weasel-protocol.json"), JsonSerializer.Serialize(message, ThemeFiles.Json));
                 Check(message.View!.Candidates[0].Text == "你好" && message.Left == 400 && message.Bottom == 426, "native Weasel adapter protocol round trip");

@@ -25,9 +25,16 @@ public sealed class WeaselHost : Window
     private ThemeConfigMonitor? configMonitor;
     private readonly DispatcherTimer configTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private nint hwnd;
-    public WeaselHost(ThemeLibrary library)
+    private readonly Func<bool> enabled;
+    private bool listening;
+    private string renderedTheme = "";
+    public long PresentationCount { get; private set; }
+    public string LastPresentedTheme { get; private set; } = "";
+    public bool NativeVisible => hwnd != 0 && IsWindowVisible(hwnd);
+    public WeaselHost(ThemeLibrary library, Func<bool>? enabled = null)
     {
         this.library = library;
+        this.enabled = enabled ?? (() => true);
         configTimer.Tick += (_, _) => RefreshConfiguration(); configTimer.Start();
         Title = "TypeFlow 候选窗"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true; Background = Brushes.Transparent; ShowInTaskbar = false; ShowActivated = false; Topmost = true;
@@ -38,10 +45,17 @@ public sealed class WeaselHost : Window
             SetWindowLongPtrW(hwnd, -20, GetWindowLongPtrW(hwnd, -20) | 0x08000000 | 0x80);
             HwndSource.FromHwnd(hwnd)?.AddHook(Hook);
         };
-        Loaded += async (_, _) => { Hide(); await Listen(shutdown.Token); };
+        Loaded += (_, _) => { Hide(); Start(); };
         Closed += (_, _) => { configTimer.Stop(); shutdown.Cancel(); };
         // Selection stays with Weasel's keyboard handling. No cross-process click injection.
         IsHitTestVisible = false;
+    }
+    public void Start()
+    {
+        if (listening) return;
+        listening = true;
+        _ = new WindowInteropHelper(this).EnsureHandle();
+        _ = Listen(shutdown.Token);
     }
     private static nint Hook(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
@@ -55,7 +69,7 @@ public sealed class WeaselHost : Window
         {
             try
             {
-                await using var pipe = new NamedPipeServerStream(name, PipeDirection.In, 1, PipeTransmissionMode.Byte,
+                await using var pipe = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await pipe.WaitForConnectionAsync(ct);
                 var buffer = new byte[8192];
@@ -70,7 +84,10 @@ public sealed class WeaselHost : Window
                             var message = JsonSerializer.Deserialize<CandidatePresentation>(line.ToArray(), ThemeFiles.Json)
                                 ?? throw new InvalidDataException("候选窗消息为空。");
                             line.SetLength(0);
-                            Present(message);
+                            var accepted = enabled();
+                            if (accepted) Present(message); else Hide();
+                            await pipe.WriteAsync(new byte[] { accepted ? (byte)'1' : (byte)'0' }, ct);
+                            await pipe.FlushAsync(ct);
                         }
                         else
                         {
@@ -92,6 +109,8 @@ public sealed class WeaselHost : Window
         if (message.View.Candidates.Count > 10 || message.View.Candidates.Any(x => x.Text.Length > 4096)) throw new InvalidDataException("候选窗数据超出限制。");
         RefreshConfiguration();
         surface.SetView(message.View);
+        PresentationCount++;
+        LastPresentedTheme = renderedTheme;
         surface.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Show(); UpdateLayout();
         var caret = new NativeRect { Left = message.Left, Top = message.Top, Right = message.Right, Bottom = message.Bottom };
@@ -106,20 +125,24 @@ public sealed class WeaselHost : Window
         var x = Math.Clamp(message.Left, info.Work.Left, info.Work.Right - width);
         var y = message.Bottom + height <= info.Work.Bottom ? message.Bottom : message.Top - height;
         y = Math.Clamp(y, info.Work.Top, info.Work.Bottom - height);
-        SetWindowPos(hwnd, new nint(-1), x, y, width, height, 0x0010);
+        // StartupInfo may request SW_HIDE for a background process. Explicitly
+        // show the HWND after WPF's first Show, without activating the editor.
+        SetWindowPos(hwnd, new nint(-1), x, y, width, height, 0x0010 | 0x0040);
     }
     private void RefreshConfiguration()
     {
+        if (!enabled()) { Hide(); return; }
         var active = library.SelectedDirectory;
         try
         {
             if (active != themeDirectory)
             {
-                surface.SetTheme(ThemeFiles.Load(Path.Combine(active, "theme.json")), active);
+                var theme = ThemeFiles.Load(Path.Combine(active, "theme.json"));
+                surface.SetTheme(theme, active); renderedTheme = theme.Name;
                 themeDirectory = active; configMonitor = new ThemeConfigMonitor(library, active);
             }
             var result = configMonitor?.Poll();
-            if (result?.Changed == true) surface.SetTheme(ThemeFiles.Load(Path.Combine(active, "theme.json")), active);
+            if (result?.Changed == true) { var theme = ThemeFiles.Load(Path.Combine(active, "theme.json")); surface.SetTheme(theme, active); renderedTheme = theme.Name; }
             if (result?.Error != null) Debug.WriteLine("Theme reload kept last good frame: " + result.Error);
         }
         catch (Exception e) when (e is IOException or InvalidDataException or FormatException or JsonException or NotSupportedException or ArgumentException)
@@ -136,4 +159,5 @@ public sealed class WeaselHost : Window
     [DllImport("user32.dll")] private static extern nint MonitorFromRect(ref NativeRect rect, uint flags);
     [DllImport("user32.dll")] private static extern bool GetMonitorInfoW(nint monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint hwnd);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(nint hwnd);
 }
