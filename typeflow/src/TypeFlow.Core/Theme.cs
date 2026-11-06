@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace TypeFlow.Core;
@@ -20,6 +21,8 @@ public sealed record ThemeLayer(string Id, string Image, string Name = "装饰�
 public sealed record ThemeSelection(string TextColor = "#FFFFFFFF", string BackgroundColor = "#FF3B6EE8");
 public sealed record Theme
 {
+    [JsonPropertyName("$schema")]
+    public string? Schema { get; init; }
     public int FormatVersion { get; init; } = 1;
     public string Id { get; init; } = "typeflow.default";
     public string Name { get; init; } = "默认";
@@ -41,6 +44,7 @@ public static partial class ThemeFiles
     public static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true,
+        ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All),
         PropertyNameCaseInsensitive = true, UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
     };

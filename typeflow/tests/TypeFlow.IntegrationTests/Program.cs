@@ -63,6 +63,7 @@ internal static class Program
             Check(engine.SelectCandidate(0).Commit == firstText, "candidate click API after learning");
             engine.ProcessKey('n'); engine.Clear(); Check(engine.View.Preedit.Length == 0, "clear composition");
             passed += LayoutTests.Run(repo, temp, library, imported.ThemeDirectory, engine);
+            passed += LinkedConfigTests.Run(repo, temp, library, engine);
             library.Delete(imported.ThemeDirectory);
             Check(library.ActiveDirectory == library.DefaultDirectory, "deleting active theme restores default");
             File.WriteAllText(Path.Combine(library.Root, "active.json"), "\"../escape\"");

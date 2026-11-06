@@ -1,0 +1,40 @@
+{
+  "$schema": "../../docs/theme.schema.json",
+  "formatVersion": 1,
+  "id": "my.config-theme",
+  "name": "我的配置皮肤",
+  "author": "我",
+  "units": "dip",
+
+  // 直接修改后保存；在程序中关联此文件后约 1 秒自动刷新。
+  "layout": {
+    "minWidth": 480,
+    "minHeight": 120,
+    "candidateGap": 16,
+    "preeditPosition": { "x": 20, "y": 18 },
+    "candidatePosition": { "x": 20, "y": 54 },
+  },
+
+  // 颜色顺序为 #AARRGGBB；字号及坐标使用 DIP。
+  "text": {
+    "fontFamily": "Microsoft YaHei UI",
+    "fontSize": 18,
+    "color": "#FF243047",
+    "preeditColor": "#FF607087",
+  },
+  "selection": {
+    "textColor": "#FFFFFFFF",
+    "backgroundColor": "#FF506DE0",
+  },
+  "background": {
+    "mode": "solid",
+    "color": "#FFF3F6FF",
+    // 使用图片时可加 "image": "assets/background.png"，mode 改为 stretch/tile/nineSlice。
+  },
+
+  // 可直接在这里添加装饰图层；路径相对于本配置文件所在目录。
+  // { "id": "badge", "image": "assets/badge.png", "name": "角标",
+  //   "anchor": "bottomRight", "x": -12, "y": -8, "width": 48, "height": 48,
+  //   "opacity": 0.8, "plane": "aboveText", "mode": "stretch", "visible": true }
+  "layers": [],
+}

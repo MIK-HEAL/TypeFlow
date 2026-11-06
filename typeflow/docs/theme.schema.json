@@ -1,0 +1,406 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TypeFlow 原生皮肤 v1",
+  "description": "JSON / JSONC 数据配置；不执行脚本。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formatVersion",
+    "id",
+    "name"
+  ],
+  "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "author": {
+      "type": "string"
+    },
+    "source": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "license": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "units": {
+      "const": "dip"
+    },
+    "requiredCapabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "static-image",
+          "nine-slice",
+          "horizontal",
+          "decoration-layers",
+          "text-position",
+          "tiled-images"
+        ]
+      }
+    },
+    "layout": {
+      "$ref": "#/$defs/layout"
+    },
+    "text": {
+      "$ref": "#/$defs/text"
+    },
+    "background": {
+      "$ref": "#/$defs/background"
+    },
+    "selection": {
+      "$ref": "#/$defs/selection"
+    },
+    "layers": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "$ref": "#/$defs/layer"
+      }
+    },
+    "extensions": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "insets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "left": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2048
+        },
+        "top": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2048
+        },
+        "right": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2048
+        },
+        "bottom": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2048
+        }
+      }
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2048
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1024
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "const": "horizontal"
+        },
+        "padding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/insets"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidateGap": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 256
+        },
+        "rowGap": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 128
+        },
+        "minWidth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2048
+        },
+        "minHeight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "preeditMargin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/insets"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidateMargin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/insets"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preeditPosition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/position"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidatePosition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/position"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "text": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fontFamily": {
+          "type": "string"
+        },
+        "fontSize": {
+          "type": "number",
+          "minimum": 6,
+          "maximum": 96
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{8}$",
+          "description": "#AARRGGBB"
+        },
+        "preeditColor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{8}$",
+          "description": "#AARRGGBB"
+        }
+      }
+    },
+    "background": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "stretch",
+            "tile",
+            "nineSlice"
+          ]
+        },
+        "slice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/insets"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{8}$",
+          "description": "#AARRGGBB"
+        },
+        "horizontalFill": {
+          "type": "string",
+          "enum": [
+            "stretch",
+            "tile"
+          ]
+        },
+        "verticalFill": {
+          "type": "string",
+          "enum": [
+            "stretch",
+            "tile"
+          ]
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "textColor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{8}$",
+          "description": "#AARRGGBB"
+        },
+        "backgroundColor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{8}$",
+          "description": "#AARRGGBB"
+        }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "image"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anchor": {
+          "type": "string",
+          "enum": [
+            "topLeft",
+            "topCenter",
+            "topRight",
+            "centerLeft",
+            "center",
+            "centerRight",
+            "bottomLeft",
+            "bottomCenter",
+            "bottomRight"
+          ]
+        },
+        "x": {
+          "type": "number",
+          "minimum": -2048,
+          "maximum": 2048
+        },
+        "y": {
+          "type": "number",
+          "minimum": -1024,
+          "maximum": 1024
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2048,
+          "description": "0 使用源图宽度"
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1024,
+          "description": "0 使用源图高度"
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "plane": {
+          "type": "string",
+          "enum": [
+            "behindText",
+            "aboveText"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "stretch",
+            "tile",
+            "nineSlice"
+          ]
+        },
+        "slice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/insets"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "horizontalFill": {
+          "type": "string",
+          "enum": [
+            "stretch",
+            "tile"
+          ]
+        },
+        "verticalFill": {
+          "type": "string",
+          "enum": [
+            "stretch",
+            "tile"
+          ]
+        },
+        "visible": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

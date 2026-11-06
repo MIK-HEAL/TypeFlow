@@ -15,6 +15,19 @@ internal static class Program
     {
         try
         {
+            if (args is ["--validate", var config])
+            {
+                var model = ThemeFiles.Load(config);
+                var renderer = new CandidateSurface(); renderer.SetTheme(model, Path.GetDirectoryName(Path.GetFullPath(config))!);
+                Console.WriteLine($"配置有效：{model.Name} ({model.Id})"); return 0;
+            }
+            if (args.Length is 2 or 3 && args[0] == "--link" && (args.Length == 2 || args[2] == "--apply"))
+            {
+                var registry = new ThemeLibrary(Path.Combine(FindProductRoot(), "workspace"));
+                var path = registry.Link(args[1]);
+                if (args.Length == 3) registry.Activate(path);
+                Console.WriteLine(JsonSerializer.Serialize(new { entry = path, sourceFile = registry.ConfigFile(path), applied = args.Length == 3 }, ThemeFiles.Json)); return 0;
+            }
             if (args is ["--import", var source, var destination])
             {
                 var registry = new ImporterRegistry(); registry.Register(new SsfImporter()); registry.Register(new NativeThemeImporter());

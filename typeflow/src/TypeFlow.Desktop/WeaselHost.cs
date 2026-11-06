@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using TypeFlow.Core;
 
 namespace TypeFlow.Desktop;
@@ -19,10 +20,13 @@ public sealed class WeaselHost : Window
     private readonly ThemeLibrary library;
     private readonly CancellationTokenSource shutdown = new();
     private string themeDirectory = "";
+    private ThemeConfigMonitor? configMonitor;
+    private readonly DispatcherTimer configTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private nint hwnd;
     public WeaselHost(ThemeLibrary library)
     {
         this.library = library;
+        configTimer.Tick += (_, _) => RefreshConfiguration(); configTimer.Start();
         Title = "TypeFlow 候选窗"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true; Background = Brushes.Transparent; ShowInTaskbar = false; ShowActivated = false; Topmost = true;
         SizeToContent = SizeToContent.WidthAndHeight; Content = surface;
@@ -33,7 +37,7 @@ public sealed class WeaselHost : Window
             HwndSource.FromHwnd(hwnd)?.AddHook(Hook);
         };
         Loaded += async (_, _) => { Hide(); await Listen(shutdown.Token); };
-        Closed += (_, _) => shutdown.Cancel();
+        Closed += (_, _) => { configTimer.Stop(); shutdown.Cancel(); };
         // Selection stays with Weasel's keyboard handling. No cross-process click injection.
         IsHitTestVisible = false;
     }
@@ -84,13 +88,7 @@ public sealed class WeaselHost : Window
     {
         if (!message.Visible || message.View == null || (message.View.Preedit.Length == 0 && message.View.Candidates.Count == 0)) { Hide(); return; }
         if (message.View.Candidates.Count > 10 || message.View.Candidates.Any(x => x.Text.Length > 4096)) throw new InvalidDataException("候选窗数据超出限制。");
-        var active = library.ActiveDirectory;
-        if (active != themeDirectory)
-        {
-            try { surface.SetTheme(ThemeFiles.Load(Path.Combine(active, "theme.json")), active); themeDirectory = active; }
-            catch (Exception e) when (e is IOException or InvalidDataException or FormatException or NotSupportedException or ArgumentException)
-            { surface.SetTheme(new Theme(), library.DefaultDirectory); themeDirectory = ""; }
-        }
+        RefreshConfiguration();
         surface.SetView(message.View);
         surface.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Show(); UpdateLayout();
@@ -107,6 +105,26 @@ public sealed class WeaselHost : Window
         var y = message.Bottom + height <= info.Work.Bottom ? message.Bottom : message.Top - height;
         y = Math.Clamp(y, info.Work.Top, info.Work.Bottom - height);
         SetWindowPos(hwnd, new nint(-1), x, y, width, height, 0x0010);
+    }
+    private void RefreshConfiguration()
+    {
+        var active = library.SelectedDirectory;
+        try
+        {
+            if (active != themeDirectory)
+            {
+                surface.SetTheme(ThemeFiles.Load(Path.Combine(active, "theme.json")), active);
+                themeDirectory = active; configMonitor = new ThemeConfigMonitor(library, active);
+            }
+            var result = configMonitor?.Poll();
+            if (result?.Changed == true) surface.SetTheme(ThemeFiles.Load(Path.Combine(active, "theme.json")), active);
+            if (result?.Error != null) Debug.WriteLine("Theme reload kept last good frame: " + result.Error);
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException or FormatException or JsonException or NotSupportedException or ArgumentException)
+        {
+            Debug.WriteLine(e.Message);
+            if (themeDirectory.Length == 0) surface.SetTheme(new Theme(), library.DefaultDirectory);
+        }
     }
     [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public NativeRect Monitor, Work; public uint Flags; }

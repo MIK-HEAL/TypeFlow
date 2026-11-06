@@ -1,9 +1,11 @@
 using System.IO;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using TypeFlow.Core;
 using TypeFlow.Engine.Rime;
@@ -21,6 +23,11 @@ public sealed class MainWindow : Window
     private IInputEngine? engine;
     private bool chinese = true;
     private string selected = "";
+    private ThemeConfigMonitor? configMonitor;
+    private readonly DispatcherTimer configTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private string reportBase = "";
+    private bool reloading;
+    private bool configFailed;
     public MainWindow(ThemeLibrary library, string productRoot)
     {
         this.library = library;
@@ -42,6 +49,21 @@ public sealed class MainWindow : Window
         {
             var dialog = new OpenFolderDialog(); if (dialog.ShowDialog(this) == true) await Import(dialog.FolderName);
         });
+        AddButton(actions, "关联配置文件…", () => Guard(() =>
+        {
+            var dialog = new OpenFileDialog { Filter = "原生皮肤配置 (*.json;*.jsonc)|*.json;*.jsonc" };
+            if (dialog.ShowDialog(this) == true) { var path = library.Link(dialog.FileName); Reload(); Load(path); }
+        }));
+        var configButton = AddButton(actions, "编辑配置文件", () => Guard(OpenConfiguration));
+        configButton.ContextMenu = new ContextMenu();
+        var locate = new MenuItem { Header = "打开配置所在目录" };
+        locate.Click += (_, _) => Guard(() =>
+        {
+            var start = new ProcessStartInfo("explorer.exe") { UseShellExecute = true };
+            start.ArgumentList.Add("/select," + library.ConfigFile(selected)); Process.Start(start);
+        });
+        configButton.ContextMenu.Items.Add(locate);
+        AddButton(actions, "立即重载配置", () => PollConfiguration(true));
         AddButton(actions, "应用到候选窗", () => Guard(() => { library.Activate(selected); report.Text += "\n已应用。输入会话保持不变。"; }));
         AddButton(actions, "高级布局自定义…", () => Guard(() =>
         {
@@ -51,7 +73,7 @@ public sealed class MainWindow : Window
         }));
         AddButton(actions, "恢复默认皮肤", () => Guard(() => { Load(library.DefaultDirectory); library.Activate(library.DefaultDirectory); }));
         AddButton(actions, "删除导入的皮肤", () => Guard(() => { library.Delete(selected); Reload(); Load(library.ActiveDirectory); }));
-        sidebar.Children.Add(themes); themes.SelectionChanged += (_, _) => { if (themes.SelectedItem is ThemeItem item) Guard(() => Load(item.Directory)); };
+        sidebar.Children.Add(themes); themes.SelectionChanged += (_, _) => { if (!reloading && themes.SelectedItem is ThemeItem item) Guard(() => Load(item.Directory)); };
         var main = new Grid(); layout.Children.Add(main);
         main.RowDefinitions.Add(new() { Height = new GridLength(260) }); main.RowDefinitions.Add(new() { Height = GridLength.Auto });
         main.RowDefinitions.Add(new() { Height = GridLength.Auto }); main.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
@@ -79,15 +101,16 @@ public sealed class MainWindow : Window
         InputMethod.SetIsInputMethodEnabled(editor, false);
         editor.PreviewKeyDown += KeyDown;
         surface.CandidateSelected += i => { if (engine != null && i < engine.View.Candidates.Count) Guard(() => Apply(engine.SelectCandidate(i))); editor.Focus(); };
-        Closed += (_, _) => engine?.Dispose();
+        configTimer.Tick += (_, _) => PollConfiguration(); configTimer.Start();
+        Closed += (_, _) => { configTimer.Stop(); engine?.Dispose(); };
         AllowDrop = true; DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length == 1) await Import(files[0]); };
     }
     private void UpdateStatus() => engineStatus.Text = engine == null ? "引擎尚未加载；当前展示皮肤预览。运行时准备方式见 README。" : $"Rime 真实输入 · {(chinese ? "中文" : "英文")} · 空格选词 / 数字选词 / Esc 取消 / PageUp、PageDown 翻页";
-    private static void AddButton(Panel parent, string label, Action action)
+    private static Button AddButton(Panel parent, string label, Action action)
     {
         var button = new Button { Content = label, Padding = new(10, 7, 10, 7), Margin = new(0, 4, 6, 4) };
-        button.Click += (_, _) => action(); parent.Children.Add(button);
+        button.Click += (_, _) => action(); parent.Children.Add(button); return button;
     }
     private async Task Import(string source)
     {
@@ -95,8 +118,17 @@ public sealed class MainWindow : Window
         catch (Exception e) { MessageBox.Show(this, e.Message, "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
     private void Guard(Action action) { try { action(); } catch (Exception e) { MessageBox.Show(this, e.Message, "TypeFlow", MessageBoxButton.OK, MessageBoxImage.Warning); } }
-    private void Reload() => themes.ItemsSource = library.List().Select(x => new ThemeItem(x.Directory, x.Theme.Name)).ToArray();
-    private void Load(string directory)
+    private void Reload()
+    {
+        reloading = true;
+        try
+        {
+            themes.ItemsSource = library.List().Select(x => new ThemeItem(x.Directory, x.Theme.Name + (File.Exists(Path.Combine(x.Directory, "link.json")) ? " [关联]" : ""))).ToArray();
+            themes.SelectedItem = themes.Items.Cast<ThemeItem>().FirstOrDefault(x => x.Directory == selected);
+        }
+        finally { reloading = false; }
+    }
+    private void Load(string directory, bool monitor = true)
     {
         var theme = ThemeFiles.Load(Path.Combine(directory, "theme.json"));
         surface.SetTheme(theme, directory); selected = directory;
@@ -107,6 +139,27 @@ public sealed class MainWindow : Window
             var r = JsonSerializer.Deserialize<ImportReport>(File.ReadAllText(file), ThemeFiles.Json)!;
             report.Text += $"兼容程度：{r.Compatibility}\n" + string.Join("\n", r.Diagnostics.Select(x => "• " + x.Message));
         }
+        report.Text += "\n配置文件：" + library.ConfigFile(directory) + "\n保存后约 1 秒自动重载；原生配置支持 JSON/JSONC。";
+        reportBase = report.Text;
+        configFailed = false;
+        if (monitor) configMonitor = new ThemeConfigMonitor(library, directory);
+    }
+    private void PollConfiguration(bool force = false)
+    {
+        if (configMonitor == null) return;
+        var result = configMonitor.Poll(force);
+        if (result.Error != null) { configFailed = true; report.Text = reportBase + "\n重载失败，继续显示上次有效皮肤：" + result.Error; return; }
+        if (result.Changed) Guard(() => { Load(selected, false); Reload(); report.Text = reportBase + "\n配置已重载，输入会话保持不变。"; });
+        else if (force || configFailed) { configFailed = false; report.Text = reportBase + "\n配置有效，已继续使用当前皮肤。"; }
+    }
+    private void OpenConfiguration()
+    {
+        if (selected == library.DefaultDirectory)
+        {
+            using var draft = new ThemeEditSession(library, selected);
+            var path = draft.SaveCopy("默认 · 我的配置"); Reload(); Load(path);
+        }
+        Process.Start(new ProcessStartInfo(library.ConfigFile(selected)) { UseShellExecute = true });
     }
     private new void KeyDown(object sender, KeyEventArgs e)
     {

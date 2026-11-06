@@ -2,6 +2,8 @@
 
 格式为 `theme.json` 加包内图片资源目录；两个可直接编辑的例子在 `themes/`。字段采用 camelCase，版本必须为 1，单位为 `dip`，颜色为 `#AARRGGBB`。未知顶层字段拒绝加载，格式扩展写入 `extensions`。未知必要能力拒绝加载，避免静默降级。
 
+读取器也支持 JSONC 注释及末尾逗号；可用 `$schema` 指向公开的 `theme.schema.json` 供编辑器提示。关联外部配置时文件名可自定，资源相对于该配置文件目录。公开 Schema 及 [配置文件使用方法](configuration.md) 与 GUI 共用同一模型。
+
 `layout` 支持 `direction: horizontal`、统一 `padding`、`candidateGap`、`rowGap`、`minWidth`、`minHeight`；可用 `preeditMargin`、`candidateMargin` 分别定位两行。所有 Insets 对象都使用明确的 `left/top/right/bottom` 字段，不依赖数组位置。第二行位于第一行文字下方，再加各自上下边距。`text` 提供字体、DIP 字号、普通颜色和拼音颜色；`selection` 提供选中文字和背景颜色。
 
 `background.mode` 为 `solid`、`stretch`、`tile` 或 `nineSlice`。图片通过 `background.image` 使用包内相对路径；`slice` 是源图像像素的固定边界，不是归一化坐标。九宫格四角保持尺寸，中间分区可通过 `horizontalFill/verticalFill` 分别拉伸或平铺。图片内置 DPI 不改变协议布局：渲染前统一为 96 DPI 逻辑尺寸，最后按显示器 DPI 放大。
