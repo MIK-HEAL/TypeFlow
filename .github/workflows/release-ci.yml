@@ -44,7 +44,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Remove previous nightly release
-        if: ${{ github.ref_type != 'tag' }}
+        if: ${{ github.repository == 'rime/librime' && github.ref_type != 'tag' }}
         continue-on-error: true
         run: |
           gh release delete --yes --cleanup-tag latest

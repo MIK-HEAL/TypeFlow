@@ -35,6 +35,16 @@ internal static class Program
         try
         {
             var library = CrossPlatformComponents.CreateThemeLibrary(Path.Combine(temp, "workspace"));
+            var seedLibrary = CrossPlatformComponents.CreateThemeLibrary(Path.Combine(temp, "seed-profile"));
+            Check(File.Exists(Path.Combine(seedLibrary.Themes, "bundled-paper/theme.json")) &&
+                File.Exists(Path.Combine(seedLibrary.Themes, "bundled-night/theme.json")), "first run seeds both first-party themes");
+            var seedDirectory = Path.Combine(seedLibrary.Themes, "bundled-paper");
+            var seed = ThemeFiles.Load(Path.Combine(seedDirectory, "theme.json"));
+            ThemeFiles.Save(seed with { Name = "Existing user customization" }, seedDirectory);
+            _ = CrossPlatformComponents.CreateThemeLibrary(seedLibrary.Root);
+            Check(ThemeFiles.Load(Path.Combine(seedDirectory, "theme.json")).Name == "Existing user customization", "restart never overwrites existing sample configuration");
+            Reject<ArgumentException>(() => LaunchOptions.Parse(["--smoke-test", "report.json"]));
+            Reject<ArgumentException>(() => LaunchOptions.Parse(["--workspace", temp, "--smoke-test", "report.json", "--rime", "library", "shared", "user", "schema"]));
             var imported = library.Import(Path.Combine(repo, "test/ssf/尼古喵喵！.ssf")).GetAwaiter().GetResult();
             AppBuilder.Configure<App>().UseSkia()
                 .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();

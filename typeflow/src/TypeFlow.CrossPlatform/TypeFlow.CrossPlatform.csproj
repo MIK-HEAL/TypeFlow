@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <Import Project="../../Avalonia.props" />
-  <PropertyGroup><OutputType>WinExe</OutputType></PropertyGroup>
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <RuntimeFrameworkVersion>10.0.11</RuntimeFrameworkVersion>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
@@ -8,5 +13,9 @@
     <ProjectReference Include="../TypeFlow.Themes/TypeFlow.Themes.csproj" />
     <ProjectReference Include="../TypeFlow.Importers.Ssf/TypeFlow.Importers.Ssf.csproj" />
     <ProjectReference Include="../TypeFlow.Engine.Rime/TypeFlow.Engine.Rime.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../themes/paper/theme.json" Link="themes/paper/theme.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../themes/night/theme.json" Link="themes/night/theme.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

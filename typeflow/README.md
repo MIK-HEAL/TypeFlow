@@ -1,5 +1,7 @@
 # TypeFlow 开发原型
 
+**首个用户体验包：0.1.0-alpha.1 Windows x64 皮肤工作台。** 已生成自包含便携包，并通过解压后的原生启动/渲染/保存/重启验证；独立 GitHub 工作流可生成下载产物和发布草稿。它默认使用演示候选；完整系统输入法另行验收。打包和发布步骤见 [Alpha 发布说明](docs/alpha-release.md)。
+
 已开始跨平台组件化：共享核心、皮肤管理、布局编辑事务、SSF 导入、Rime 适配和无窗口 CLI 可独立构建；图片校验/转码由宿主注入，WPF 渲染已拆到单独工程。已核实 a857fa33 的三平台共享组件 CI 全部通过，并继续增加独立的 [Avalonia 跨平台工作台小样](docs/avalonia-workbench.md)。Linux/macOS 系统输入前端尚未实现。组件边界、构建入口和逐平台验证结果见 [跨平台与组件化方案](docs/cross-platform.md)。
 
 新工作台入口：`pwsh -NoProfile -File typeflow/scripts/Build-CrossPlatform.ps1 -Test`；随后运行 `dotnet typeflow/build/cross-platform/TypeFlow.CrossPlatform.dll --workspace typeflow/workspace/avalonia`。下面的直接运行说明继续描述原有 WPF 原型。

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>TypeFlow 原生输入验收</title>
+<style>
+body { max-width: 780px; margin: 40px auto; padding: 0 24px; font: 18px/1.6 "Microsoft YaHei",sans-serif; color: #17243b; }
+textarea { box-sizing: border-box; width: 100%; height: 180px; padding: 16px; font: 26px/1.6 "Microsoft YaHei",sans-serif; }
+pre { padding: 16px; background: #f1f4f8; white-space: pre-wrap; font: 15px/1.5 Consolas,monospace; }
+</style>
+<h1>TypeFlow 原生输入验收</h1>
+<p>使用系统输入法逐键输入拼音并选词。下方只记录本页输入事件，数据留在当前页面。</p>
+<textarea id="input" aria-label="中文输入测试区" autofocus></textarea>
+<pre id="events">等待输入</pre>
+<script>
+const input = document.querySelector('#input');
+const output = document.querySelector('#events');
+const events = [];
+for (const name of ['compositionstart','compositionupdate','compositionend','input']) {
+  input.addEventListener(name, event => {
+    events.push({ event: event.type, data: event.data ?? '', trusted: event.isTrusted, value: input.value });
+    if (events.length > 20) events.shift();
+    output.textContent = events.map(item => JSON.stringify(item)).join('\n');
+  });
+}
+</script>
+</html>

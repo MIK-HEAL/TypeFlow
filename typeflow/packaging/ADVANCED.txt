@@ -1,0 +1,22 @@
+高级使用：连接自行准备的 Rime
+
+首个 Alpha 包默认提供皮肤工作台与演示候选，不自动联网下载运行时。
+如需真实输入测试，请自行准备同为 Windows x64 的：
+1. typeflow_rime.dll 桥接库，放到 TypeFlow.exe 同目录；
+2. librime 及其全部运行依赖；
+3. 共享方案/词库与一个独立用户目录。
+
+运行示例（路径按本机实际情况替换）：
+TypeFlow.exe --rime "D:\Rime\rime.dll" "D:\Rime\shared" "D:\TypeFlow-RimeUser" luna_pinyin_simp
+
+窗口标题下方会显示已连接真实 Rime。输入拼音后可用空格、数字或鼠标选词。
+这些操作只影响本窗口；不注册 Windows 输入法，不接管其他应用输入。
+
+其他参数
+  --workspace <皮肤库目录>
+  --theme <原生皮肤目录或 JSON/JSONC 文件>
+  --help
+
+开发者构建桥接与准备测试运行时，参见项目：
+https://github.com/MIK-HEAL/TypeFlow/tree/master/typeflow
+第三方运行时、词库和皮肤各自遵循原许可证。

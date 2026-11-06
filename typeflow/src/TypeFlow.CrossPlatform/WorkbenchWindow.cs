@@ -45,7 +45,7 @@ public sealed class WorkbenchWindow : Window
         Content = root;
         var header = new StackPanel { Spacing = 5 };
         header.Children.Add(new TextBlock { Text = "TypeFlow", FontSize = 30, FontWeight = FontWeight.SemiBold });
-        header.Children.Add(new TextBlock { Text = engine == null ? "皮肤与布局工作台 · 演示候选模式" : "皮肤与布局工作台 · 已连接真实 Rime", Foreground = Brushes.SlateGray });
+        header.Children.Add(new TextBlock { Text = App.ProductVersion + (engine == null ? " · 皮肤与布局工作台 · 演示候选模式" : " · 皮肤与布局工作台 · 已连接真实 Rime"), Foreground = Brushes.SlateGray });
         root.Children.Add(header);
         var body = new Grid { ColumnDefinitions = new("260,*"), ColumnSpacing = 22 }; Grid.SetRow(body, 1); root.Children.Add(body);
         var sidebar = new DockPanel { LastChildFill = true };

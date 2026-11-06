@@ -1,0 +1,90 @@
+name: TypeFlow Alpha package
+
+on:
+  push:
+    branches: [master]
+    tags: ['typeflow-v*']
+    paths: ['typeflow/**', '.github/workflows/typeflow-release.yml']
+  pull_request:
+    paths: ['typeflow/**', '.github/workflows/typeflow-release.yml']
+  workflow_dispatch:
+    inputs:
+      create_draft:
+        description: Create a draft prerelease after package verification
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.303'
+      - name: Build and test workbench
+        shell: pwsh
+        run: ./typeflow/scripts/Build-CrossPlatform.ps1 -Test
+      - name: Test shared services and importers
+        shell: pwsh
+        run: |
+          dotnet run --project typeflow/tests/TypeFlow.Tests/TypeFlow.Tests.csproj -c Release -- .
+          if ($LASTEXITCODE) { throw 'Shared service checks failed.' }
+      - name: Package self-contained Windows Alpha
+        shell: pwsh
+        run: ./typeflow/scripts/Package-Alpha.ps1
+      - name: Verify extracted package without global dotnet paths
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem typeflow/build/releases -Recurse -File -Filter '*.zip'
+          if (@($zip).Count -ne 1) { throw 'Expected exactly one Alpha package.' }
+          ./typeflow/scripts/Test-AlphaPackage.ps1 -Archive $zip.FullName
+      - name: Upload verified user download files
+        uses: actions/upload-artifact@v7
+        with:
+          name: typeflow-alpha-win-x64
+          path: typeflow/build/releases/**
+          if-no-files-found: error
+      - name: Upload package verification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: typeflow-alpha-verification
+          path: typeflow/build/evidence/alpha-package/**
+          if-no-files-found: ignore
+
+  draft:
+    needs: package
+    if: >-
+      github.repository == 'MIK-HEAL/TypeFlow' &&
+      (startsWith(github.ref, 'refs/tags/typeflow-v') ||
+       (github.event_name == 'workflow_dispatch' && inputs.create_draft))
+    permissions:
+      contents: write
+      actions: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: typeflow-alpha-win-x64
+          path: release
+      - name: Create draft prerelease with the verified ZIP
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $manifestFile = @(Get-ChildItem release -Recurse -File -Filter 'package-manifest.json')
+          if ($manifestFile.Count -ne 1) { throw 'Expected one package manifest.' }
+          $manifest = Get-Content -LiteralPath $manifestFile[0].FullName -Raw | ConvertFrom-Json
+          if ($manifest.sourceDirty -or $manifest.sourceCommit -ne $env:GITHUB_SHA) { throw 'Package source does not match this run.' }
+          if ($manifest.version -notmatch '^\d+\.\d+\.\d+-alpha\.\d+$') { throw 'Invalid Alpha version.' }
+          $tag = "typeflow-v$($manifest.version)"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $tag) { throw 'Tag and package version differ.' }
+          $folder = Split-Path $manifestFile[0].FullName -Parent
+          $zip = Join-Path $folder "TypeFlow-$($manifest.version)-win-x64.zip"
+          $notes = Join-Path $folder 'RELEASE_NOTES.md'
+          gh release create $tag $zip "$zip.sha256" $manifestFile[0].FullName --repo $env:GITHUB_REPOSITORY --draft --prerelease --target $env:GITHUB_SHA --title "TypeFlow $($manifest.version) · 皮肤工作台体验版" --notes-file $notes
+          if ($LASTEXITCODE) { throw 'Draft release creation failed; existing releases were not modified.' }

@@ -214,35 +214,35 @@
         "dependencies": {
           "Avalonia.Desktop": "[12.1.5, )",
           "Avalonia.Themes.Fluent": "[12.1.5, )",
-          "TypeFlow.Engine.Rime": "[1.0.0, )",
-          "TypeFlow.Importers.Ssf": "[1.0.0, )",
-          "TypeFlow.Rendering.Avalonia": "[1.0.0, )",
-          "TypeFlow.Themes": "[1.0.0, )"
+          "TypeFlow.Engine.Rime": "[0.1.0-alpha.1, )",
+          "TypeFlow.Importers.Ssf": "[0.1.0-alpha.1, )",
+          "TypeFlow.Rendering.Avalonia": "[0.1.0-alpha.1, )",
+          "TypeFlow.Themes": "[0.1.0-alpha.1, )"
         }
       },
       "typeflow.engine.rime": {
         "type": "Project",
         "dependencies": {
-          "TypeFlow.Core": "[1.0.0, )"
+          "TypeFlow.Core": "[0.1.0-alpha.1, )"
         }
       },
       "typeflow.importers.ssf": {
         "type": "Project",
         "dependencies": {
-          "TypeFlow.Core": "[1.0.0, )"
+          "TypeFlow.Core": "[0.1.0-alpha.1, )"
         }
       },
       "typeflow.rendering.avalonia": {
         "type": "Project",
         "dependencies": {
           "Avalonia": "[12.1.5, )",
-          "TypeFlow.Core": "[1.0.0, )"
+          "TypeFlow.Core": "[0.1.0-alpha.1, )"
         }
       },
       "typeflow.themes": {
         "type": "Project",
         "dependencies": {
-          "TypeFlow.Core": "[1.0.0, )"
+          "TypeFlow.Core": "[0.1.0-alpha.1, )"
         }
       }
     }
