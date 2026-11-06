@@ -26,7 +26,7 @@ internal static class LayoutTests
         var before = JsonSerializer.Serialize(engine.View, ThemeFiles.Json);
         string saved;
         string draft;
-        using (var edit = new ThemeEditSession(library, source))
+        using (var edit = new ThemeEditSession(library, source, new WpfThemeImageTranscoder()))
         {
             draft = edit.Directory;
             var baseline = JsonSerializer.Serialize(edit.Current, ThemeFiles.Json);
@@ -38,7 +38,8 @@ internal static class LayoutTests
             edit.EditLayer(id[6..], l => l with { Name = "角标", Anchor = "topRight", X = -16, Y = 110, Width = 28, Height = 28, Opacity = .6, Plane = "aboveText" });
             var surface = new CandidateSurface(); surface.SetView(engine.View); surface.SetTheme(edit.Current, edit.Directory);
             surface.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity)); surface.Arrange(new Rect(surface.DesiredSize));
-            edit.Move("preedit", 7, 5, surface.Elements);
+            var preedit = surface.Elements.Single(x => x.Id == "preedit").Bounds;
+            edit.Move("preedit", 7, 5, new(preedit.X, preedit.Y));
             Check(edit.Current.Layout.PreeditPosition == new TextPosition(177, 23), "move explicit text position");
             Check(edit.Current.Layout.CandidatePosition == new TextPosition(165, 48), "independent candidate position");
             var snapshot = JsonSerializer.Serialize(edit.Current, ThemeFiles.Json);

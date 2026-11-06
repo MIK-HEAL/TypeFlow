@@ -1,15 +1,14 @@
 using System.IO;
 using System.Text.Json;
 using TypeFlow.Core;
-using TypeFlow.Themes;
-using TypeFlow.Rendering.Wpf;
 
-namespace TypeFlow.Desktop;
+namespace TypeFlow.Themes;
 
 // A data-only editing transaction. It never reads keys or owns an input engine.
 public sealed class ThemeEditSession : IDisposable
 {
     private readonly ThemeLibrary library;
+    private readonly IThemeImageTranscoder images;
     private readonly Theme original;
     private Theme current;
     private readonly List<Theme> history = [];
@@ -23,9 +22,12 @@ public sealed class ThemeEditSession : IDisposable
     public bool CanRedo => index + 1 < history.Count;
     public bool IsDirty => JsonSerializer.Serialize(current, ThemeFiles.Json) != JsonSerializer.Serialize(original, ThemeFiles.Json);
     public event Action? Changed;
-    public ThemeEditSession(ThemeLibrary library, string sourceDirectory)
+    public ThemeEditSession(ThemeLibrary library, string sourceDirectory, IThemeImageTranscoder images)
     {
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(images);
         this.library = library;
+        this.images = images;
         original = ThemeFiles.Load(Path.Combine(sourceDirectory, "theme.json"));
         sourceName = original.Name;
         var reportPath = ThemeFiles.AssetPath(sourceDirectory, "import-report.json");
@@ -48,7 +50,8 @@ public sealed class ThemeEditSession : IDisposable
     private void Check() => ObjectDisposedException.ThrowIf(disposed, this);
     private void ValidateRender(Theme theme)
     {
-        var validator = new CandidateSurface(); validator.SetTheme(theme, Directory);
+        ThemeFiles.Validate(theme, Directory);
+        library.Validator.Validate(theme, Directory);
     }
     public void Update(Func<Theme, Theme> change)
     {
@@ -65,13 +68,18 @@ public sealed class ThemeEditSession : IDisposable
     public void Reset() => Update(_ => Clone(original));
     public string CopyImage(string source)
     {
-        Check(); var image = ThemeImages.Load(source);
+        Check();
         // Normalize every new decoration to a static PNG. GIF animation is never silently enabled.
         var relative = "assets/edited-" + Guid.NewGuid().ToString("N") + ".png";
         var path = ThemeFiles.AssetPath(Directory, relative);
         System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
-        using var output = File.Create(path); encoder.Save(output); return relative;
+        try { images.WriteStaticPng(source, path); }
+        catch
+        {
+            if (File.Exists(path)) File.Delete(path);
+            throw;
+        }
+        return relative;
     }
     public string AddLayer(string imagePath)
     {
@@ -89,14 +97,21 @@ public sealed class ThemeEditSession : IDisposable
         var to = Math.Clamp(from + delta, 0, layers.Count - 1); var item = layers[from]; layers.RemoveAt(from); layers.Insert(to, item);
         return t with { Layers = layers.ToArray() };
     });
-    public void Move(string element, double dx, double dy, IReadOnlyList<CanvasElement> elements)
+    // The renderer supplies the displayed origin in DIP; no UI geometry type enters this service.
+    public void Move(string element, double dx, double dy, TextPosition origin)
     {
-        var bounds = elements.Single(x => x.Id == element).Bounds;
+        Check();
+        ArgumentNullException.ThrowIfNull(origin);
+        if (!double.IsFinite(dx) || !double.IsFinite(dy) || !double.IsFinite(origin.X) || !double.IsFinite(origin.Y))
+            throw new ArgumentOutOfRangeException(nameof(origin), "移动坐标必须为有限数值。");
+        if (element is not ("preedit" or "candidates") &&
+            !(element.StartsWith("layer:", StringComparison.Ordinal) && current.Layers.Any(x => x.Id == element[6..])))
+            throw new ArgumentException("未知的布局元素。", nameof(element));
         if (element.StartsWith("layer:", StringComparison.Ordinal))
             EditLayer(element[6..], x => x with { X = Math.Clamp(x.X + dx, -2048, 2048), Y = Math.Clamp(x.Y + dy, -1024, 1024) });
         else Update(t => t with { Layout = element == "preedit"
-            ? t.Layout with { PreeditPosition = new(Math.Clamp(bounds.X + dx, 0, 2048), Math.Clamp(bounds.Y + dy, 0, 1024)) }
-            : t.Layout with { CandidatePosition = new(Math.Clamp(bounds.X + dx, 0, 2048), Math.Clamp(bounds.Y + dy, 0, 1024)) } });
+            ? t.Layout with { PreeditPosition = new(Math.Clamp(origin.X + dx, 0, 2048), Math.Clamp(origin.Y + dy, 0, 1024)) }
+            : t.Layout with { CandidatePosition = new(Math.Clamp(origin.X + dx, 0, 2048), Math.Clamp(origin.Y + dy, 0, 1024)) } });
     }
     public string SaveCopy(string name)
     {
@@ -127,7 +142,8 @@ public sealed class ThemeEditSession : IDisposable
         if (disposed) return;
         disposed = true;
         var prefix = Path.GetFullPath(Path.Combine(library.Root, "drafts")) + Path.DirectorySeparatorChar;
-        if (!Directory.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("草稿清理路径越界。");
+        if (!Directory.StartsWith(prefix, ThemeFiles.FileSystemComparison)) throw new InvalidOperationException("草稿清理路径越界。");
         if (System.IO.Directory.Exists(Directory)) System.IO.Directory.Delete(Directory, true);
     }
 }
+

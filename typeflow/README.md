@@ -1,6 +1,6 @@
 # TypeFlow 开发原型
 
-已开始跨平台组件化：共享核心、皮肤管理、SSF 导入、Rime 适配和无窗口 CLI 可独立构建；WPF 渲染已拆到单独工程。Windows 桌面仍是现有可运行界面，Linux/macOS 系统输入前端尚未实现。组件边界、构建入口和逐平台验证结果见 [跨平台与组件化方案](docs/cross-platform.md)。
+已开始跨平台组件化：共享核心、皮肤管理、布局编辑事务、SSF 导入、Rime 适配和无窗口 CLI 可独立构建；图片校验/转码由宿主注入，WPF 渲染已拆到单独工程。上一版共享组件已通过 GitHub 三平台 CI；Windows 桌面仍是现有可运行界面，Linux/macOS 系统输入前端尚未实现。组件边界、构建入口和逐平台验证结果见 [跨平台与组件化方案](docs/cross-platform.md)。
 
 已实现真实 Rime 输入适配、插件式皮肤导入、原生格式、图片候选窗渲染和皮肤管理。当前交付是**桌面输入实验室**，不是已注册的 Windows 系统输入法。系统前端复用入口已提供，完整的小狼毫构建、安装和跨应用验收仍待完成。
 
@@ -53,7 +53,7 @@ dotnet typeflow/build/app/TypeFlow.Desktop.dll --import "typeflow/themes/night" 
 | `src/TypeFlow.Importers.Ssf` | 普通 ZIP SSF 的识别、编码解析、独立映射和兼容性报告 |
 | `src/TypeFlow.Engine.Rime` | 实现 `IInputEngine`，对接稳定的 C 桥接接口 |
 | `native` | 复用仓库 `src/rime_api.h`，动态加载官方 Rime，不依赖皮肤代码 |
-| `src/TypeFlow.Themes` | 平台无关皮肤库、配置关联、快照和热重载；宿主注入导入器和图片校验 |
+| `src/TypeFlow.Themes` | 平台无关皮肤库、配置关联/重载、布局编辑事务；宿主注入导入器和图片校验/转码 |
 | `src/TypeFlow.Rendering.Wpf` | Windows 候选渲染、图片解码和校验，不依赖桌面应用 |
 | `src/TypeFlow.Desktop` | Windows 输入实验室、编辑窗口、可选小狼毫候选窗宿主和组件装配 |
 | `src/TypeFlow.Cli` | 无窗口导入、模型校验和引擎冒烟入口 |

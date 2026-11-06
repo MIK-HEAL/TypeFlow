@@ -158,7 +158,7 @@ public sealed class MainWindow : Window
     {
         if (selected == library.DefaultDirectory)
         {
-            using var draft = new ThemeEditSession(library, selected);
+            using var draft = new ThemeEditSession(library, selected, new WpfThemeImageTranscoder());
             var path = draft.SaveCopy("默认 · 我的配置"); Reload(); Load(path);
         }
         Process.Start(new ProcessStartInfo(library.ConfigFile(selected)) { UseShellExecute = true });

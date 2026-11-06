@@ -29,7 +29,7 @@ public sealed class LayoutEditorWindow : Window
     public event Action<string, bool>? Saved;
     public LayoutEditorWindow(ThemeLibrary library, string sourceDirectory, CandidateView preview)
     {
-        session = new(library, sourceDirectory);
+        session = new(library, sourceDirectory, new WpfThemeImageTranscoder());
         Title = "TypeFlow · 高级皮肤布局"; Width = 1380; Height = 860; MinWidth = 1080; MinHeight = 680;
         FontFamily = new("Microsoft YaHei UI"); FontSize = 13; Background = new SolidColorBrush(Color.FromRgb(242, 245, 250));
         initialName = session.Current.Name + " · 自定义"; name.Text = initialName;
@@ -72,7 +72,12 @@ public sealed class LayoutEditorWindow : Window
         Grid.SetColumn(inspector, 2); columns.Children.Add(inspector);
         elements.SelectionChanged += (_, _) => { if (!refreshing && elements.SelectedItem is Item item) Select(item.Id); };
         surface.ElementSelected += Select;
-        surface.ElementMoved += (id, dx, dy) => Run(() => { session.Move(id, dx, dy, surface.Elements); BuildProperties(); });
+        surface.ElementMoved += (id, dx, dy) => Run(() =>
+        {
+            var bounds = surface.Elements.Single(x => x.Id == id).Bounds;
+            session.Move(id, dx, dy, new(bounds.X, bounds.Y));
+            BuildProperties();
+        });
         surface.SetView(preview.Preedit.Length > 0 || preview.Candidates.Count > 0 ? preview : Program.Demo);
         session.Changed += Refresh;
         Refresh(); Select("preedit");

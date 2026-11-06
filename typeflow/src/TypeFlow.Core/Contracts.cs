@@ -44,6 +44,12 @@ public interface IThemeValidator
     void Validate(Theme theme, string directory);
 }
 
+// The image backend validates and normalizes one static image to a new PNG file.
+public interface IThemeImageTranscoder
+{
+    void WriteStaticPng(string source, string destination);
+}
+
 public interface IInputEngine : IDisposable
 {
     string Id { get; }
