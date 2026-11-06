@@ -52,7 +52,7 @@ $source = & (Join-Path $PSScriptRoot 'Prepare-NativeSource.ps1')
 $source = [string]($source | Select-Object -Last 1)
 $source = $source.Trim()
 & (Join-Path $PSScriptRoot 'Apply-NativeBuildFixes.ps1') -Source $source
-& (Join-Path $PSScriptRoot 'Apply-Bridge.ps1') -WeaselSource $source
+& (Join-Path $PSScriptRoot 'Apply-TsfRenderer.ps1') -WeaselSource $source
 $reference = Join-Path $repoRoot '.cache/typeflow/reference'
 $include = Join-Path $source 'librime/include'
 $null = New-Item -ItemType Directory -Path $include -Force

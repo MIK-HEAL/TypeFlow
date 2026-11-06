@@ -20,7 +20,7 @@ VIAddVersionKey /LANG=2052 "LegalCopyright" "TypeFlow contributors; Rime / Wease
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TEXT "安装 TypeFlow 拼音输入法，自动准备词库和输入服务。$\r$\n$\r$\n支持导入 SSF、编辑皮肤布局，并应用到系统候选窗。"
 !define MUI_FINISHPAGE_TITLE "TypeFlow 已安装"
-!define MUI_FINISHPAGE_TEXT "首次启动会自动准备拼音词库。$\r$\n$\r$\n使用 Win + 空格切换到 TypeFlow IME Preview。Shift 切换中英文。$\r$\n$\r$\n可在开始菜单打开配置目录或重新部署。"
+!define MUI_FINISHPAGE_TEXT "首次启动会自动准备拼音词库。$\r$\n$\r$\n使用 Win + 空格切换到 TypeFlow IME Preview。Shift 切换中英文。$\r$\n$\r$\n升级前已打开的应用可能仍加载旧输入法组件，请关闭并重新打开这些应用。"
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "启用 TypeFlow 并打开皮肤设置"
 !define MUI_FINISHPAGE_RUN_FUNCTION StartTypeFlow

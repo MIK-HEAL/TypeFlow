@@ -16,6 +16,8 @@ namespace typeflow {
 class Endpoint {
  public:
   static Endpoint& Instance() { static Endpoint endpoint; return endpoint; }
+  explicit Endpoint(std::string source = "test") : source_(std::move(source)), worker_([this] { Run(); }) {}
+  bool Ready() const { return connected_.load(); }
   Endpoint(const Endpoint&) = delete;
   Endpoint& operator=(const Endpoint&) = delete;
   ~Endpoint() {
@@ -63,7 +65,6 @@ class Endpoint {
     changed_.notify_one();
   }
  private:
-  Endpoint() : worker_([this] { Run(); }) {}
   static std::string Quote(const std::wstring& text) {
     const auto length = (std::min)(text.size(), size_t(4096));
     const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(length), nullptr, 0, nullptr, nullptr);
@@ -80,7 +81,8 @@ class Endpoint {
     return out + '"';
   }
   void Queue() {
-    pending_ = std::string("{\"visible\":") + (visible_ ? "true" : "false") +
+    pending_ = std::string("{\"sourcePid\":") + std::to_string(GetCurrentProcessId()) +
+        ",\"source\":\"" + source_ + "\",\"visible\":" + (visible_ ? "true" : "false") +
         ",\"left\":" + std::to_string(rect_.left) + ",\"top\":" + std::to_string(rect_.top) +
         ",\"right\":" + std::to_string(rect_.right) + ",\"bottom\":" + std::to_string(rect_.bottom) +
         ",\"view\":" + view_ + "}\n";
@@ -112,19 +114,32 @@ class Endpoint {
   }
   void Run() {
     DWORD session = 0; ProcessIdToSessionId(GetCurrentProcessId(), &session);
-    const auto name = L"\\\\.\\pipe\\TypeFlow.Weasel.v1." + std::to_wstring(session);
+    const auto name = L"\\\\.\\pipe\\TypeFlow.Candidates.v2." + std::to_wstring(session);
     HANDLE pipe = INVALID_HANDLE_VALUE;
     std::string last;
     while (true) {
       std::string message;
+      bool visible = false;
       {
         std::unique_lock<std::mutex> lock(mutex_);
         changed_.wait_for(lock, std::chrono::milliseconds(250), [this] { return stop_ || !pending_.empty(); });
         if (stop_) break;
         message.swap(pending_);
         if (message.empty()) message = last;
+        visible = visible_;
       }
       if (message.empty()) continue;
+      // An inactive input context must neither take the single renderer pipe
+      // nor keep hiding a candidate window owned by another application.
+      if (!visible) {
+        if (pipe != INVALID_HANDLE_VALUE) {
+          char acknowledged = 0;
+          Transfer(pipe, message.data(), static_cast<DWORD>(message.size()), false);
+          Transfer(pipe, &acknowledged, 1, true);
+          CloseHandle(pipe); pipe = INVALID_HANDLE_VALUE;
+        }
+        last.clear(); Connected(false); continue;
+      }
       last = message;
       if (pipe == INVALID_HANDLE_VALUE)
         pipe = CreateFileW(name.c_str(), GENERIC_WRITE | GENERIC_READ, 0, nullptr, OPEN_EXISTING,
@@ -146,6 +161,7 @@ class Endpoint {
   std::atomic<bool> connected_{false};
   std::atomic<HWND> window_{nullptr};
   std::function<void()> refresh_;
+  std::string source_;
   std::thread worker_;
 };
 }

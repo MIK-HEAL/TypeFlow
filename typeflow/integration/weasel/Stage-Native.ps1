@@ -14,7 +14,9 @@ $uninstallStart = $setup.IndexOf('int uninstall_ime_file(')
 $uninstall = $setup.Substring($uninstallStart, $setup.IndexOf('// 注册IME输入法', $uninstallStart) - $uninstallStart)
 if ($uninstall.IndexOf('retval += func(imePath, false, true, false, false, silent);') -lt $uninstall.IndexOf('Wow64DisableWow64FsRedirection')) { throw '64-bit unregister must run after disabling WOW64 redirection.' }
 $ui = [IO.File]::ReadAllText((Join-Path $Source 'WeaselUI/WeaselUI.cpp'))
-if (-not $ui.Contains('TypeFlowEndpoint.h') -or -not $ui.Contains('Endpoint::Instance().Attach')) { throw 'Missing skin renderer integration or recovery hook.' }
+if ($ui.Contains('TypeFlowEndpoint.h')) { throw 'Legacy shared-UI transport must not occupy the TSF renderer pipe.' }
+$tsf = [IO.File]::ReadAllText((Join-Path $Source 'WeaselTSF/CandidateList.cpp'))
+if (-not $tsf.Contains('TypeFlow authoritative TSF renderer v2') -or -not $tsf.Contains('_renderer->Attach')) { throw 'Missing authoritative TSF skin renderer integration.' }
 $server = [IO.File]::ReadAllText((Join-Path $Source 'WeaselServer/WeaselServerApp.cpp'))
 if ($server.Contains('  win_sparkle_init();')) { throw 'Preview must not activate upstream auto-update.' }
 $files = [ordered]@{

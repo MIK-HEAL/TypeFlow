@@ -31,7 +31,8 @@ public sealed record Candidate(string Text, string Comment = "", string Label = 
 public sealed record CandidateView(string Preedit, IReadOnlyList<Candidate> Candidates,
     int Highlighted = 0, int Page = 0, bool IsLastPage = true);
 public sealed record KeyResult(bool Handled, string Commit, CandidateView View);
-public sealed record CandidatePresentation(bool Visible, int Left, int Top, int Right, int Bottom, CandidateView? View);
+public sealed record CandidatePresentation(bool Visible, int Left, int Top, int Right, int Bottom, CandidateView? View,
+    int SourcePid = 0, string Source = "unspecified");
 public interface ICandidateRenderer
 {
     void SetTheme(Theme theme, string directory);

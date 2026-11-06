@@ -29,6 +29,8 @@ public sealed class WeaselHost : Window
     private bool listening;
     private string renderedTheme = "";
     public long PresentationCount { get; private set; }
+    public long NativeTsfPresentationCount { get; private set; }
+    public int LastSourcePid { get; private set; }
     public string LastPresentedTheme { get; private set; } = "";
     public bool NativeVisible => hwnd != 0 && IsWindowVisible(hwnd);
     public WeaselHost(ThemeLibrary library, Func<bool>? enabled = null)
@@ -64,7 +66,7 @@ public sealed class WeaselHost : Window
     }
     private async Task Listen(CancellationToken ct)
     {
-        var name = "TypeFlow.Weasel.v1." + Process.GetCurrentProcess().SessionId;
+        var name = "TypeFlow.Candidates.v2." + Process.GetCurrentProcess().SessionId;
         while (!ct.IsCancellationRequested)
         {
             try
@@ -85,7 +87,7 @@ public sealed class WeaselHost : Window
                                 ?? throw new InvalidDataException("候选窗消息为空。");
                             line.SetLength(0);
                             var accepted = enabled();
-                            if (accepted) Present(message); else Hide();
+                            if (accepted) { Present(message); if (message.Visible) accepted = NativeVisible; } else Hide();
                             await pipe.WriteAsync(new byte[] { accepted ? (byte)'1' : (byte)'0' }, ct);
                             await pipe.FlushAsync(ct);
                         }
@@ -110,6 +112,8 @@ public sealed class WeaselHost : Window
         RefreshConfiguration();
         surface.SetView(message.View);
         PresentationCount++;
+        if (message.Source == "tsf") NativeTsfPresentationCount++;
+        LastSourcePid = message.SourcePid;
         LastPresentedTheme = renderedTheme;
         surface.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Show(); UpdateLayout();

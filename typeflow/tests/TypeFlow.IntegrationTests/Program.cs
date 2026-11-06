@@ -70,7 +70,7 @@ internal static class Program
             Check(library.ActiveDirectory == library.DefaultDirectory, "deleting active theme restores default");
             File.WriteAllText(Path.Combine(library.Root, "active.json"), "\"../escape\"");
             Check(library.ActiveDirectory == library.DefaultDirectory, "invalid active config falls back");
-            using (var pipe = new NamedPipeServerStream("TypeFlow.Weasel.v1." + Process.GetCurrentProcess().SessionId,
+            using (var pipe = new NamedPipeServerStream("TypeFlow.Candidates.v2." + Process.GetCurrentProcess().SessionId,
                 PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly))
             using (var sender = Process.Start(new ProcessStartInfo(Path.Combine(repo, "typeflow/build/native/Release/typeflow_endpoint_smoke.exe"))
                 { UseShellExecute = false, CreateNoWindow = true })!)

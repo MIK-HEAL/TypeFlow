@@ -95,8 +95,10 @@ public sealed class MainWindow : Window
         inputPanel.Children.Add(new TextBlock { Text = "输入测试区", FontSize = 17, FontWeight = FontWeights.SemiBold });
         inputPanel.Children.Add(engineStatus); inputPanel.Children.Add(editor);
         var helpers = new StackPanel { Orientation = Orientation.Horizontal, Margin = new(0, 10, 0, 10) }; Grid.SetRow(helpers, 2); main.Children.Add(helpers);
-        AddButton(helpers, "中 / 英", () => { chinese = !chinese; engine?.Clear(); surface.SetView(engine?.View ?? Program.Demo); UpdateStatus(); });
-        AddButton(helpers, "显示预览文字", () => surface.SetView(Program.Demo));
+        if (systemMode == null) AddButton(helpers, "中 / 英", () => { chinese = !chinese; engine?.Clear(); surface.SetView(engine?.View ?? Program.Demo); UpdateStatus(); });
+        else helpers.Children.Add(new TextBlock { Text = "Shift 切换中英文 · 空格/数字选词", VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 12, 0) });
+        AddButton(helpers, "重置示例文字", () => surface.SetView(Program.Demo));
+        helpers.Children.Add(new TextBlock { Text = "预览缩放", VerticalAlignment = VerticalAlignment.Center });
         var zoom = new ComboBox { ItemsSource = new[] { "100%", "150%", "200%" }, SelectedIndex = 0, Margin = new(12, 4, 0, 4), MinWidth = 90 };
         zoom.SelectionChanged += (_, _) => { var s = new[] { 1.0, 1.5, 2.0 }[zoom.SelectedIndex]; surface.LayoutTransform = new ScaleTransform(s, s); }; helpers.Children.Add(zoom);
         Grid.SetRow(report, 3); main.Children.Add(report);
