@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using TypeFlow.Core;
+using TypeFlow.Themes;
+using TypeFlow.Rendering.Wpf;
 using TypeFlow.Desktop;
 using TypeFlow.Engine.Rime;
 
@@ -21,7 +23,7 @@ internal static class Program
         void Check(bool v, string label) { if (!v) throw new Exception("FAIL: " + label); passed++; }
         try
         {
-            var library = new ThemeLibrary(Path.Combine(temp, "workspace"));
+            var library = DesktopComponents.CreateThemeLibrary(Path.Combine(temp, "workspace"));
             var imported = library.Import(Path.Combine(repo, "test/ssf/尼古喵喵！.ssf")).GetAwaiter().GetResult();
             var surface = new CandidateSurface();
             using var engine = new RimeEngine(Path.Combine(repo, "typeflow/runtime/rime.dll"), Path.Combine(repo, "typeflow/rime-data"), Path.Combine(temp, "rime-user"), "luna_pinyin_simp");

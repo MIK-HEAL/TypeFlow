@@ -66,7 +66,8 @@ try
     var invalidJson = Path.Combine(temp, "invalid.json");
     await File.WriteAllTextAsync(invalidJson, "{\"layout\":null}");
     try { ThemeFiles.Load(invalidJson); throw new Exception("null accepted"); } catch (InvalidDataException) { passed++; }
-    Console.WriteLine($"PASS: {passed} checks, including supplied SSF, malicious archives, encoding variants and rollback.");
+    passed += ThemeServiceTests.Run(temp);
+    Console.WriteLine($"PASS: {passed} checks, including supplied SSF, malicious archives, encoding variants, rollback and portable theme services.");
 }
 finally { Directory.Delete(temp, true); }
 

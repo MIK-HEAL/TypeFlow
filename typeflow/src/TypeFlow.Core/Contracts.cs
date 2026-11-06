@@ -32,6 +32,18 @@ public sealed record CandidateView(string Preedit, IReadOnlyList<Candidate> Cand
     int Highlighted = 0, int Page = 0, bool IsLastPage = true);
 public sealed record KeyResult(bool Handled, string Commit, CandidateView View);
 public sealed record CandidatePresentation(bool Visible, int Left, int Top, int Right, int Bottom, CandidateView? View);
+public interface ICandidateRenderer
+{
+    void SetTheme(Theme theme, string directory);
+    void SetView(CandidateView view);
+}
+
+// Hosts provide image decoding / rendering checks before publishing a linked snapshot.
+public interface IThemeValidator
+{
+    void Validate(Theme theme, string directory);
+}
+
 public interface IInputEngine : IDisposable
 {
     string Id { get; }

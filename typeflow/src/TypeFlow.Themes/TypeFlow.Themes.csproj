@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><ProjectReference Include="../TypeFlow.Core/TypeFlow.Core.csproj" /></ItemGroup>
+</Project>
+

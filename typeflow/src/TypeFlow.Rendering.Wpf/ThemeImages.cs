@@ -3,9 +3,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using TypeFlow.Core;
 
-namespace TypeFlow.Desktop;
+namespace TypeFlow.Rendering.Wpf;
 
-internal static class ThemeImages
+public static class ThemeImages
 {
     public static BitmapSource Load(string path)
     {
@@ -29,3 +29,4 @@ internal static class ThemeImages
             throw new InvalidDataException("九宫格边界必须在源图范围内。");
     }
 }
+

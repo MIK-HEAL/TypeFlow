@@ -5,6 +5,8 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using TypeFlow.Core;
+using TypeFlow.Themes;
+using TypeFlow.Rendering.Wpf;
 using TypeFlow.Desktop;
 
 internal static class LayoutTests

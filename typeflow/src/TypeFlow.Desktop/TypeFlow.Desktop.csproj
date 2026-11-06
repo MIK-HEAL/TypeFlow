@@ -10,5 +10,7 @@
     <ProjectReference Include="../TypeFlow.Core/TypeFlow.Core.csproj" />
     <ProjectReference Include="../TypeFlow.Importers.Ssf/TypeFlow.Importers.Ssf.csproj" />
     <ProjectReference Include="../TypeFlow.Engine.Rime/TypeFlow.Engine.Rime.csproj" />
+    <ProjectReference Include="../TypeFlow.Themes/TypeFlow.Themes.csproj" />
+    <ProjectReference Include="../TypeFlow.Rendering.Wpf/TypeFlow.Rendering.Wpf.csproj" />
   </ItemGroup>
 </Project>

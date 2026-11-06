@@ -2,6 +2,8 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 using TypeFlow.Core;
+using TypeFlow.Themes;
+using TypeFlow.Rendering.Wpf;
 using TypeFlow.Desktop;
 
 internal static class LinkedConfigTests
@@ -71,7 +73,7 @@ internal static class LinkedConfigTests
         Check(monitor.Poll(true).Error == null, "restored image recovers");
         File.Delete(config);
         Check(monitor.Poll(true).Error != null, "removed authoring file reported");
-        var restarted = new ThemeLibrary(library.Root);
+        var restarted = DesktopComponents.CreateThemeLibrary(library.Root);
         Check(restarted.ActiveDirectory == entry && ThemeFiles.Load(Path.Combine(entry, "theme.json")).Layers.Length == 1, "restart works from last good snapshot without source");
         File.WriteAllText(config, JsonSerializer.Serialize(model, ThemeFiles.Json));
         monitor.Poll(true);

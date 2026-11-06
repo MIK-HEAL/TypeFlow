@@ -1,6 +1,8 @@
 using System.IO;
 using System.Text.Json;
 using TypeFlow.Core;
+using TypeFlow.Themes;
+using TypeFlow.Rendering.Wpf;
 
 namespace TypeFlow.Desktop;
 

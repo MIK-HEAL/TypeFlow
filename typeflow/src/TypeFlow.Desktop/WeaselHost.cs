@@ -9,6 +9,8 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using TypeFlow.Core;
+using TypeFlow.Themes;
+using TypeFlow.Rendering.Wpf;
 
 namespace TypeFlow.Desktop;
 

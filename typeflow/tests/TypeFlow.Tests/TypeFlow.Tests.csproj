@@ -3,5 +3,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/TypeFlow.Core/TypeFlow.Core.csproj" />
     <ProjectReference Include="../../src/TypeFlow.Importers.Ssf/TypeFlow.Importers.Ssf.csproj" />
+    <ProjectReference Include="../../src/TypeFlow.Themes/TypeFlow.Themes.csproj" />
   </ItemGroup>
 </Project>

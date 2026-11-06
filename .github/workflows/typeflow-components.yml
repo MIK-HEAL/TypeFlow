@@ -1,0 +1,30 @@
+name: TypeFlow shared components
+on:
+  push:
+    paths: ['typeflow/**', 'src/rime_api.h', 'test/ssf/**', '.github/workflows/typeflow-components.yml']
+  pull_request:
+    paths: ['typeflow/**', 'src/rime_api.h', 'test/ssf/**', '.github/workflows/typeflow-components.yml']
+  workflow_dispatch:
+
+jobs:
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build portable components and test theme services and importers
+        shell: pwsh
+        run: ./typeflow/scripts/Build-Portable.ps1 -Native -Test
+      - name: Test native library loading and error recovery
+        run: ctest --test-dir typeflow/build/native-portable -C Release --output-on-failure
+      - name: Check headless CLI
+        run: dotnet typeflow/build/cli/TypeFlow.Cli.dll --validate typeflow/themes/night/theme.json
+      - name: Build Windows desktop composition
+        if: runner.os == 'Windows'
+        run: dotnet build typeflow/src/TypeFlow.Desktop/TypeFlow.Desktop.csproj -c Release

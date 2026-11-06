@@ -2,6 +2,8 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using TypeFlow.Core;
+using TypeFlow.Themes;
+using TypeFlow.Rendering.Wpf;
 using TypeFlow.Engine.Rime;
 using TypeFlow.Importers.Ssf;
 
@@ -23,7 +25,7 @@ internal static class Program
             }
             if (args.Length is 2 or 3 && args[0] == "--link" && (args.Length == 2 || args[2] == "--apply"))
             {
-                var registry = new ThemeLibrary(Path.Combine(FindProductRoot(), "workspace"));
+                var registry = DesktopComponents.CreateThemeLibrary(Path.Combine(FindProductRoot(), "workspace"));
                 var path = registry.Link(args[1]);
                 if (args.Length == 3) registry.Activate(path);
                 Console.WriteLine(JsonSerializer.Serialize(new { entry = path, sourceFile = registry.ConfigFile(path), applied = args.Length == 3 }, ThemeFiles.Json)); return 0;
@@ -51,7 +53,7 @@ internal static class Program
                 File.WriteAllText(output, JsonSerializer.Serialize(new { engine.Id, before, commit }, ThemeFiles.Json)); return 0;
             }
             var root = FindProductRoot();
-            var library = new ThemeLibrary(Path.Combine(root, "workspace"));
+            var library = DesktopComponents.CreateThemeLibrary(Path.Combine(root, "workspace"));
             var app = new Application();
             if (args is ["--weasel-host"]) return app.Run(new WeaselHost(library));
             return app.Run(new MainWindow(library, root));

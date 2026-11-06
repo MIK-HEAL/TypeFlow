@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using TypeFlow.Core;
 
-namespace TypeFlow.Desktop;
+namespace TypeFlow.Themes;
 
 public sealed record ThemeLink(string SourceFile);
 public sealed record LinkedSnapshot(Theme Theme, bool Changed, string[] SourceFiles);
@@ -21,15 +21,13 @@ public static class LinkedThemes
         if (string.IsNullOrWhiteSpace(link.SourceFile) || !Path.IsPathFullyQualified(link.SourceFile)) throw new InvalidDataException("关联配置必须使用完整本地路径。");
         return Path.GetFullPath(link.SourceFile);
     }
-    public static LinkedSnapshot Refresh(string entry)
+    public static LinkedSnapshot Refresh(string entry, IThemeValidator validator)
     {
         var source = SourceFile(entry) ?? throw new InvalidOperationException("该皮肤没有关联外部配置。");
         var sourceDirectory = Path.GetDirectoryName(source)!;
         var theme = ThemeFiles.Load(source);
         var rebased = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var sourceFiles = new List<string> { source };
-        long decodedPixels = 0;
-        var decoded = new Dictionary<string, System.Windows.Media.Imaging.BitmapSource>(StringComparer.OrdinalIgnoreCase);
         foreach (var relative in ThemeFiles.ReferencedImages(theme))
         {
             var inputPath = ThemeFiles.AssetPath(sourceDirectory, relative);
@@ -47,13 +45,8 @@ public static class LinkedThemes
                 try { File.WriteAllBytes(temp, bytes); File.Move(temp, destination, false); }
                 finally { if (File.Exists(temp)) File.Delete(temp); }
             }
-            var image = ThemeImages.Load(destination);
-            decodedPixels += (long)image.PixelWidth * image.PixelHeight;
-            if (decodedPixels > 16_000_000) throw new InvalidDataException("皮肤图片解码总量超过 1600 万像素。");
-            rebased[relative] = name; decoded[relative] = image;
+            rebased[relative] = name;
         }
-        if (theme.Background is { Mode: "nineSlice", Image: { } background }) ThemeImages.ValidateSlice(decoded[background], theme.Background.Slice);
-        foreach (var layer in theme.Layers.Where(x => x.Mode == "nineSlice")) ThemeImages.ValidateSlice(decoded[layer.Image], layer.Slice);
         theme = ThemeFiles.DeclareCapabilities(theme with
         {
             Schema = theme.Schema is { } schema && !Uri.TryCreate(schema, UriKind.Absolute, out _)
@@ -62,6 +55,7 @@ public static class LinkedThemes
             Layers = theme.Layers.Select(x => x with { Image = rebased[x.Image] }).ToArray()
         });
         ThemeFiles.Validate(theme, entry);
+        validator.Validate(theme, entry);
         var json = JsonSerializer.Serialize(theme, ThemeFiles.Json);
         var config = ThemeFiles.AssetPath(entry, "theme.json");
         var changed = !File.Exists(config) || File.ReadAllText(config) != json;
@@ -71,13 +65,13 @@ public static class LinkedThemes
             try { File.WriteAllText(temporary, json); File.Move(temporary, config, true); }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
         }
-        return new(theme, changed, sourceFiles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        return new(theme, changed, sourceFiles.Distinct(ThemeFiles.FileSystemComparer).ToArray());
     }
 }
 
 public sealed record ConfigReloadResult(bool Changed, string? Error);
 
-// Polled on the owning UI dispatcher; it handles rename-and-replace saves without file watcher races.
+// Polled by the host on its owning thread; it handles rename-and-replace saves without file watcher races.
 // A stamp taken before a refresh means a concurrent save is seen on the next poll.
 public sealed class ThemeConfigMonitor(ThemeLibrary library, string entry)
 {
@@ -104,7 +98,7 @@ public sealed class ThemeConfigMonitor(ThemeLibrary library, string entry)
             else
             {
                 var model = ThemeFiles.Load(source);
-                var validate = new CandidateSurface(); validate.SetTheme(model, entry);
+                library.Validator.Validate(model, entry);
                 sourceFiles = [source, .. ThemeFiles.ReferencedImages(model).Select(x => ThemeFiles.AssetPath(entry, x))];
                 changed = true;
             }
@@ -127,3 +121,4 @@ public sealed class ThemeConfigMonitor(ThemeLibrary library, string entry)
         return stamp.ToString();
     }
 }
+

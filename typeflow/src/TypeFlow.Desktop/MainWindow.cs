@@ -8,6 +8,8 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using TypeFlow.Core;
+using TypeFlow.Themes;
+using TypeFlow.Rendering.Wpf;
 using TypeFlow.Engine.Rime;
 
 namespace TypeFlow.Desktop;

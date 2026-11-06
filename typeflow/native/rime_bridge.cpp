@@ -1,6 +1,6 @@
 // Uses the public API in the existing BSD-licensed librime checkout.
 // No theme or importer dependency belongs in this module.
-#include <windows.h>
+#include "dynamic_library.h"
 #include <rime_api.h>
 #include <cstring>
 #include <memory>
@@ -8,10 +8,14 @@
 #include <stdexcept>
 #include <mutex>
 
+#ifdef _WIN32
 #define TF_API extern "C" __declspec(dllexport)
+#else
+#define TF_API extern "C" __attribute__((visibility("default")))
+#endif
 namespace {
 RimeApi* api = nullptr;
-HMODULE module = nullptr;
+typeflow::LibraryHandle module = nullptr;
 bool initialized = false;
 std::mutex runtime_mutex;
 std::string last_error;
@@ -20,14 +24,6 @@ struct Engine {
   RimeSessionId session = 0;
   std::string result;
 };
-std::wstring wide(const char* text) {
-  const auto count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, nullptr, 0);
-  if (!count) throw std::runtime_error("Invalid UTF-8 path.");
-  std::wstring result(static_cast<size_t>(count), L'\0');
-  MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, result.data(), count);
-  result.pop_back();
-  return result;
-}
 std::string quote(const char* value) {
   std::string result = "\"";
   if (value) for (const unsigned char c : std::string(value)) {
@@ -47,7 +43,8 @@ std::string quote(const char* value) {
   return result + '"';
 }
 const char* snapshot(Engine* engine, bool handled) {
-  RIME_STRUCT(RimeCommit, commit);
+  RimeCommit commit{};
+  RIME_STRUCT_INIT(RimeCommit, commit);
   std::string text;
   if (api->get_commit(engine->session, &commit)) {
     text = commit.text ? commit.text : "";
@@ -55,7 +52,8 @@ const char* snapshot(Engine* engine, bool handled) {
   }
   std::string out = std::string("{\"handled\":") + (handled ? "true" : "false") +
       ",\"commit\":" + quote(text.c_str()) + ",\"view\":{";
-  RIME_STRUCT(RimeContext, context);
+  RimeContext context{};
+  RIME_STRUCT_INIT(RimeContext, context);
   if (api->get_context(engine->session, &context)) {
     out += "\"preedit\":" + quote(context.composition.preedit) +
         ",\"highlighted\":" + std::to_string(context.menu.highlighted_candidate_index) +
@@ -82,14 +80,13 @@ TF_API void* tf_open(const char* dll_path, const char* shared, const char* user,
   try {
     auto engine = std::make_unique<Engine>();
     engine->shared = shared; engine->user = user; engine->schema = schema;
-    const auto path = wide(dll_path);
-    module = LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
-    if (!module) throw std::runtime_error("Cannot load rime.dll or a dependency. Win32 error " + std::to_string(GetLastError()));
-    const auto get_api = reinterpret_cast<RimeApi* (*)()>(GetProcAddress(module, "rime_get_api"));
+    module = typeflow::open_library(dll_path);
+    const auto get_api = reinterpret_cast<RimeApi* (*)()>(typeflow::find_symbol(module, "rime_get_api"));
     if (!get_api) throw std::runtime_error("rime_get_api export missing.");
     api = get_api();
     if (!RIME_PROVIDED(api, select_candidate_on_current_page)) throw std::runtime_error("Unsupported librime API version.");
-    RIME_STRUCT(RimeTraits, traits);
+    RimeTraits traits{};
+    RIME_STRUCT_INIT(RimeTraits, traits);
     traits.shared_data_dir = engine->shared.c_str();
     traits.user_data_dir = engine->user.c_str();
     traits.distribution_name = "TypeFlow";
@@ -114,7 +111,7 @@ TF_API void* tf_open(const char* dll_path, const char* shared, const char* user,
     last_error = e.what();
     if (initialized && api) api->finalize();
     initialized = false; api = nullptr;
-    if (module) FreeLibrary(module);
+    typeflow::close_library(module);
     module = nullptr;
     return nullptr;
   }
@@ -145,6 +142,6 @@ TF_API void tf_close(void* handle) noexcept {
   api->finalize();
   delete engine;
   initialized = false; api = nullptr;
-  if (module) FreeLibrary(module);
+  typeflow::close_library(module);
   module = nullptr;
 }

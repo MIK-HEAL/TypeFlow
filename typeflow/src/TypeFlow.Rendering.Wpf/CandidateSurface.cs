@@ -6,13 +6,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using TypeFlow.Core;
 
-namespace TypeFlow.Desktop;
+namespace TypeFlow.Rendering.Wpf;
 
-public interface ICandidateRenderer
-{
-    void SetTheme(Theme theme, string directory);
-    void SetView(CandidateView view);
-}
 public sealed record CanvasElement(string Id, string Name, Rect Bounds);
 
 public sealed class CandidateSurface : FrameworkElement, ICandidateRenderer
@@ -214,3 +209,4 @@ public sealed class CandidateSurface : FrameworkElement, ICandidateRenderer
         using var output = File.Create(path); encoder.Save(output);
     }
 }
+

@@ -1,5 +1,7 @@
 # TypeFlow 开发原型
 
+已开始跨平台组件化：共享核心、皮肤管理、SSF 导入、Rime 适配和无窗口 CLI 可独立构建；WPF 渲染已拆到单独工程。Windows 桌面仍是现有可运行界面，Linux/macOS 系统输入前端尚未实现。组件边界、构建入口和逐平台验证结果见 [跨平台与组件化方案](docs/cross-platform.md)。
+
 已实现真实 Rime 输入适配、插件式皮肤导入、原生格式、图片候选窗渲染和皮肤管理。当前交付是**桌面输入实验室**，不是已注册的 Windows 系统输入法。系统前端复用入口已提供，完整的小狼毫构建、安装和跨应用验收仍待完成。
 
 也可完全通过公开的 **JSON/JSONC 配置文件**自定义皮肤。支持关联外部配置、保存后自动重载、打开源配置和错误回退；见 [配置文件使用方法](docs/configuration.md)。YAML/CSS 解析尚未实现。
@@ -51,7 +53,10 @@ dotnet typeflow/build/app/TypeFlow.Desktop.dll --import "typeflow/themes/night" 
 | `src/TypeFlow.Importers.Ssf` | 普通 ZIP SSF 的识别、编码解析、独立映射和兼容性报告 |
 | `src/TypeFlow.Engine.Rime` | 实现 `IInputEngine`，对接稳定的 C 桥接接口 |
 | `native` | 复用仓库 `src/rime_api.h`，动态加载官方 Rime，不依赖皮肤代码 |
-| `src/TypeFlow.Desktop` | WPF 渲染器、皮肤库、输入实验室、可选小狼毫候选窗宿主 |
+| `src/TypeFlow.Themes` | 平台无关皮肤库、配置关联、快照和热重载；宿主注入导入器和图片校验 |
+| `src/TypeFlow.Rendering.Wpf` | Windows 候选渲染、图片解码和校验，不依赖桌面应用 |
+| `src/TypeFlow.Desktop` | Windows 输入实验室、编辑窗口、可选小狼毫候选窗宿主和组件装配 |
+| `src/TypeFlow.Cli` | 无窗口导入、模型校验和引擎冒烟入口 |
 | `integration/weasel` | 为固定版小狼毫提供可回退的外部渲染接入 |
 | `tests` | 样本、异常导入、真实引擎、换肤、渲染和通信检查 |
 

@@ -41,6 +41,9 @@ public sealed record Theme
 
 public static partial class ThemeFiles
 {
+    // Linux paths are case-sensitive. Never grant access to a sibling differing only in case.
+    public static StringComparison FileSystemComparison => OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    public static StringComparer FileSystemComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
     public static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true,
@@ -64,7 +67,7 @@ public static partial class ThemeFiles
         }
         var prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var result = Path.GetFullPath(Path.Combine(prefix, normalized));
-        if (!result.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("资源路径越界。");
+        if (!result.StartsWith(prefix, FileSystemComparison)) throw new InvalidDataException("资源路径越界。");
         // Reject reparse points, including ancestors, so a junction cannot redirect file access.
         for (var p = new DirectoryInfo(Path.GetDirectoryName(result)!); p != null; p = p.Parent)
             if (p.Exists && (p.Attributes & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("资源目录不能包含链接。");
