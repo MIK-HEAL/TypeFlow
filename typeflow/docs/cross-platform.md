@@ -14,6 +14,8 @@
 | TypeFlow.Engine.Rime | IInputEngine 的 Rime 实现，通过 C ABI 调用桥接 | .NET 10 + 对应系统/架构的原生库 |
 | native | 动态加载 librime，输出候选与上屏数据 | C++17；Windows loader 或 POSIX loader |
 | TypeFlow.Rendering.Wpf | WPF 候选渲染、图片解码、画布命中信息和图片校验 | Windows |
+| TypeFlow.Rendering.Avalonia | Avalonia 候选渲染、PNG 图片校验/归一化和转码 | .NET 10 + Avalonia 12.1.5 |
+| TypeFlow.CrossPlatform | 跨平台工作台小样、导入/配置关联、编辑和可选真实 Rime 输入 | .NET 10 + Avalonia Desktop |
 | TypeFlow.Desktop | 输入实验室、编辑窗口、WPF 事件、Windows 宿主与实现装配 | Windows |
 | TypeFlow.Cli | 无窗口导入、模型校验、真实引擎冒烟入口 | .NET 10；引擎命令另需原生库 |
 
@@ -23,10 +25,15 @@ flowchart TD
     Desktop --> Themes["Themes"]
     Desktop --> Ssf["Importers.Ssf"]
     Desktop --> Rime["Engine.Rime"]
+    Workbench["CrossPlatform 工作台"] --> Avalonia["Rendering.Avalonia"]
+    Workbench --> Themes
+    Workbench --> Ssf
+    Workbench --> Rime
     Cli["Cli 无窗口入口"] --> Ssf
     Cli --> Rime
     Themes --> Core["Core 模型与接口"]
     Wpf --> Core
+    Avalonia --> Core
     Ssf --> Core
     Rime --> Core
     Rime --> Bridge["原生 C ABI 桥接"]
@@ -64,9 +71,9 @@ flowchart TD
 
 ## 界面和系统输入法分别推进
 
-当前 WPF 只运行于 Windows。共享管理界面/编辑器的下一候选方案是 Avalonia；它可覆盖 Windows、Linux、macOS，并能继续使用 C#。本轮没有添加 Avalonia 依赖、安装环境或替换现有窗口。
+当前 WPF 只运行于 Windows。已增加独立的 Avalonia 12.1.5 工作台和渲染组件，复用共享服务与数据契约；依赖通过项目级 NuGet 包和锁文件管理。构建、功能范围与实际验证见 [Avalonia 工作台说明](avalonia-workbench.md)。
 
-开始迁移时先做单独小样：导入皮肤、显示同一 CandidateView、验证图片/字体/DPI/九宫格，再迁移配置页和编辑器。ThemeEditSession 已移入共享 Themes 工程；图片转码通过接口注入，移动操作只接收共享 TextPosition（DIP），不依赖 WPF Rect 或画布类型。撤销/重做、失败回滚、归属信息和原导入报告保留、独立副本发布都可由未来界面复用。现有编辑窗口及画布仍属于 Windows，尚未迁移到跨平台 UI。
+小样已支持导入、关联配置、候选渲染、拖动定位、字号调整、撤销/重做和副本保存。ThemeEditSession 的图片转码通过接口注入，移动操作只接收共享 TextPosition（DIP），不依赖窗口坐标类型。完整 WPF 属性编辑面板尚未全部迁移；Linux/macOS 新窗口仍需实机验证。
 
 系统输入接入建议保持薄适配：
 
@@ -126,16 +133,17 @@ dotnet typeflow/build/cli/TypeFlow.Cli.dll --import "test/ssf/尼古喵喵！.ss
 | Windows 原生加载/失败重试 | CTest 1/1 通过 |
 | Debian GNU 14.2 原生桥接 | Release 编译通过 |
 | Debian 原生加载/失败重试 | CTest 1/1 通过 |
-| Linux C# 运行 | 7aa024f5 的 GitHub Ubuntu CI 编译/测试通过；本机 Debian 仍无 .NET，未新增环境 |
+| Linux C# 运行 | a857fa33 的 GitHub Ubuntu 共享组件 CI 编译/测试通过 |
 | Linux 真实 Rime 与系统输入 | 未验证；加载测试不包含真实词库或输入前端 |
-| macOS 编译/运行/输入法 | 7aa024f5 的 GitHub macOS CI 编译/无窗口测试通过；GUI 与系统输入未实机验收 |
-| 三系统 CI | 7aa024f5 的 Windows、Ubuntu、macOS 组件任务均通过；本轮后续改动尚未推送验证 |
+| macOS 编译/运行/输入法 | a857fa33 的 GitHub macOS 共享组件 CI 编译/无窗口测试通过；GUI 与系统输入未实机验收 |
+| Avalonia 工作台和渲染 | Windows 30 项检查通过（含 3 项真实 Rime）；新 UI 三系统 CI 尚待推送验证 |
+| 三系统 CI | a857fa33 的 Windows、Ubuntu、macOS 共享组件任务均通过 |
 
-已核实 7aa024f5 的 [Commit CI](https://github.com/MIK-HEAL/TypeFlow/actions/runs/42153417833)、[Release CI](https://github.com/MIK-HEAL/TypeFlow/actions/runs/42153417954) 和 [TypeFlow shared components](https://github.com/MIK-HEAL/TypeFlow/actions/runs/42153417363) 全部成功。远程通过范围是该提交；本地新增的 Rime 合并和共享编辑事务迁移需在推送后重新取得 CI 结果。
+已核实 a857fa33 的 [Commit CI](https://github.com/MIK-HEAL/TypeFlow/actions/runs/42155798325)、[Release CI](https://github.com/MIK-HEAL/TypeFlow/actions/runs/42155798202) 和 [TypeFlow shared components](https://github.com/MIK-HEAL/TypeFlow/actions/runs/42155798204) 全部成功，包含 Rime 合并和共享编辑事务迁移。当前本地新增的 Avalonia 小样需在推送后重新取得 CI 结果。
 
 Windows 集成测试在沙箱中命名管道连接超时，沙箱外使用同一构建重跑后全部通过；测试只使用项目临时词库，不注册输入法。这些检查不替代桌面交互和系统级输入验收。
 
-下一步顺序：共享组件的上一版三平台 CI 已通过，本轮先完成编辑事务解耦；之后做跨平台 UI 小样，再分别推进系统输入宿主。为 Linux 添加 .NET、引入新 UI 依赖或补齐 macOS 工具链前，先确认所需环境和依赖变更。
+下一步顺序：先由三平台 CI/实机验证本轮 Avalonia 小样，再继续迁移完整属性编辑面板和系统输入宿主。新增开发环境或扩大依赖范围前，先说明所需变更。
 
 ## 资料依据
 

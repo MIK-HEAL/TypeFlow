@@ -25,6 +25,9 @@ jobs:
         run: ctest --test-dir typeflow/build/native-portable -C Release --output-on-failure
       - name: Check headless CLI
         run: dotnet typeflow/build/cli/TypeFlow.Cli.dll --validate typeflow/themes/night/theme.json
+      - name: Build Avalonia workbench and test real Skia rendering
+        shell: pwsh
+        run: ./typeflow/scripts/Build-CrossPlatform.ps1 -Test
       - name: Build Windows desktop composition
         if: runner.os == 'Windows'
         run: dotnet build typeflow/src/TypeFlow.Desktop/TypeFlow.Desktop.csproj -c Release

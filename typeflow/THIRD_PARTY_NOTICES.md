@@ -3,6 +3,7 @@
 This is a development prototype, not a redistribution-ready installer.
 
 - The surrounding librime checkout is BSD-3-Clause; see `../LICENSE`.
+- The optional cross-platform workbench uses Avalonia 12.1.5 (MIT), Fluent styles and its Skia/HarfBuzz rendering dependencies. Direct versions are in `Avalonia.props`; all resolved package versions and content hashes are in the three Avalonia project `packages.lock.json` files. The existing shared components and WPF application do not reference these packages. Preserve Avalonia, SkiaSharp/Skia, HarfBuzz and other transitive native package notices when preparing a distributable; this prototype does not yet provide a complete binary redistribution inventory.
 - `native/rime_bridge.cpp` calls its public API. The local development runtime comes from the official librime 1.17.0 clang x64 release. That release's `version-info.txt` also lists librime-lua (`ec52e48`), librime-octagram (`dfcc151`) and librime-predict (`920bd41`). A minimal custom runtime or a complete dependency and plugin license inventory is required before packaging for distribution.
 - Rime's dependency archive supplies OpenCC conversion data and upstream native dependencies. See the respective projects' license terms; do not assume the top-level BSD license covers all binaries and data.
 - The fetched `rime-luna-pinyin`, `rime-prelude`, and `rime-essay` snapshots include LGPL-3.0 license files, preserved in `rime-data/licenses/`. Repositories, immutable commits and archive hashes are recorded in `sources.json`.

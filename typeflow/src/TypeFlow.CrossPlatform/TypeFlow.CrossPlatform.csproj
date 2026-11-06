@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../Avalonia.props" />
+  <PropertyGroup><OutputType>WinExe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <ProjectReference Include="../TypeFlow.Rendering.Avalonia/TypeFlow.Rendering.Avalonia.csproj" />
+    <ProjectReference Include="../TypeFlow.Themes/TypeFlow.Themes.csproj" />
+    <ProjectReference Include="../TypeFlow.Importers.Ssf/TypeFlow.Importers.Ssf.csproj" />
+    <ProjectReference Include="../TypeFlow.Engine.Rime/TypeFlow.Engine.Rime.csproj" />
+  </ItemGroup>
+</Project>

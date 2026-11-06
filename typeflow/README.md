@@ -1,6 +1,8 @@
 # TypeFlow 开发原型
 
-已开始跨平台组件化：共享核心、皮肤管理、布局编辑事务、SSF 导入、Rime 适配和无窗口 CLI 可独立构建；图片校验/转码由宿主注入，WPF 渲染已拆到单独工程。上一版共享组件已通过 GitHub 三平台 CI；Windows 桌面仍是现有可运行界面，Linux/macOS 系统输入前端尚未实现。组件边界、构建入口和逐平台验证结果见 [跨平台与组件化方案](docs/cross-platform.md)。
+已开始跨平台组件化：共享核心、皮肤管理、布局编辑事务、SSF 导入、Rime 适配和无窗口 CLI 可独立构建；图片校验/转码由宿主注入，WPF 渲染已拆到单独工程。已核实 a857fa33 的三平台共享组件 CI 全部通过，并继续增加独立的 [Avalonia 跨平台工作台小样](docs/avalonia-workbench.md)。Linux/macOS 系统输入前端尚未实现。组件边界、构建入口和逐平台验证结果见 [跨平台与组件化方案](docs/cross-platform.md)。
+
+新工作台入口：`pwsh -NoProfile -File typeflow/scripts/Build-CrossPlatform.ps1 -Test`；随后运行 `dotnet typeflow/build/cross-platform/TypeFlow.CrossPlatform.dll --workspace typeflow/workspace/avalonia`。下面的直接运行说明继续描述原有 WPF 原型。
 
 已实现真实 Rime 输入适配、插件式皮肤导入、原生格式、图片候选窗渲染和皮肤管理。当前交付是**桌面输入实验室**，不是已注册的 Windows 系统输入法。系统前端复用入口已提供，完整的小狼毫构建、安装和跨应用验收仍待完成。
 
@@ -55,6 +57,8 @@ dotnet typeflow/build/app/TypeFlow.Desktop.dll --import "typeflow/themes/night" 
 | `native` | 复用仓库 `src/rime_api.h`，动态加载官方 Rime，不依赖皮肤代码 |
 | `src/TypeFlow.Themes` | 平台无关皮肤库、配置关联/重载、布局编辑事务；宿主注入导入器和图片校验/转码 |
 | `src/TypeFlow.Rendering.Wpf` | Windows 候选渲染、图片解码和校验，不依赖桌面应用 |
+| `src/TypeFlow.Rendering.Avalonia` | 独立的 Avalonia 候选渲染、静态 PNG 校验/转码 |
+| `src/TypeFlow.CrossPlatform` | 跨平台工作台小样、导入/配置关联、编辑/保存和可选真实 Rime 输入 |
 | `src/TypeFlow.Desktop` | Windows 输入实验室、编辑窗口、可选小狼毫候选窗宿主和组件装配 |
 | `src/TypeFlow.Cli` | 无窗口导入、模型校验和引擎冒烟入口 |
 | `integration/weasel` | 为固定版小狼毫提供可回退的外部渲染接入 |

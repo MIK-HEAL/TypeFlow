@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <AvaloniaVersion>12.1.5</AvaloniaVersion>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+</Project>

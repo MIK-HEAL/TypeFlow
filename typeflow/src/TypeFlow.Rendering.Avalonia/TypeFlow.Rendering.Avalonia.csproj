@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../Avalonia.props" />
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <ProjectReference Include="../TypeFlow.Core/TypeFlow.Core.csproj" />
+  </ItemGroup>
+</Project>
