@@ -28,10 +28,16 @@ public sealed class WeaselHost : Window
     private readonly Func<bool> enabled;
     private bool listening;
     private string renderedTheme = "";
+    private CandidateView? lastView;
+    private NativeRect lastCaret;
+    private int themeRevision;
+    private int presentedThemeRevision;
+    private readonly Dictionary<int, DateTimeOffset> recentTsfSources = new();
     public long PresentationCount { get; private set; }
     public long NativeTsfPresentationCount { get; private set; }
     public int LastSourcePid { get; private set; }
     public string LastPresentedTheme { get; private set; } = "";
+    public IReadOnlyDictionary<int, DateTimeOffset> RecentTsfSources => recentTsfSources;
     public bool NativeVisible => hwnd != 0 && IsWindowVisible(hwnd);
     public WeaselHost(ThemeLibrary library, Func<bool>? enabled = null)
     {
@@ -47,7 +53,12 @@ public sealed class WeaselHost : Window
             SetWindowLongPtrW(hwnd, -20, GetWindowLongPtrW(hwnd, -20) | 0x08000000 | 0x80);
             HwndSource.FromHwnd(hwnd)?.AddHook(Hook);
         };
-        Loaded += (_, _) => { Hide(); Start(); };
+        Loaded += (_, _) =>
+        {
+            if (listening) return;
+            Hide();
+            Start();
+        };
         Closed += (_, _) => { configTimer.Stop(); shutdown.Cancel(); };
         // Selection stays with Weasel's keyboard handling. No cross-process click injection.
         IsHitTestVisible = false;
@@ -110,28 +121,54 @@ public sealed class WeaselHost : Window
         if (!message.Visible || message.View == null || (message.View.Preedit.Length == 0 && message.View.Candidates.Count == 0)) { Hide(); return; }
         if (message.View.Candidates.Count > 10 || message.View.Candidates.Any(x => x.Text.Length > 4096)) throw new InvalidDataException("候选窗数据超出限制。");
         RefreshConfiguration();
-        surface.SetView(message.View);
+        var sameSource = message.SourcePid == LastSourcePid;
         PresentationCount++;
-        if (message.Source == "tsf") NativeTsfPresentationCount++;
+        if (message.Source == "tsf")
+        {
+            NativeTsfPresentationCount++;
+            recentTsfSources[message.SourcePid] = DateTimeOffset.UtcNow;
+            if (recentTsfSources.Count > 16)
+                recentTsfSources.Remove(recentTsfSources.MinBy(entry => entry.Value).Key);
+        }
         LastSourcePid = message.SourcePid;
         LastPresentedTheme = renderedTheme;
-        surface.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        Show(); UpdateLayout();
         var caret = new NativeRect { Left = message.Left, Top = message.Top, Right = message.Right, Bottom = message.Bottom };
         var monitor = MonitorFromRect(ref caret, 2);
+        var visible = NativeVisible;
+        // Some text stores alternate between nearly identical caret rectangles.
+        if (visible && sameSource && caret.Left == lastCaret.Left &&
+            Math.Abs((long)caret.Top - lastCaret.Top) < 6 && Math.Abs((long)caret.Bottom - lastCaret.Bottom) < 6 &&
+            monitor == MonitorFromRect(ref lastCaret, 2))
+            caret = lastCaret;
+        var viewChanged = lastView == null || message.View.Preedit != lastView.Preedit ||
+            message.View.Highlighted != lastView.Highlighted || !message.View.Candidates.SequenceEqual(lastView.Candidates);
+        if (visible && !viewChanged && presentedThemeRevision == themeRevision && caret.Equals(lastCaret)) return;
+
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-        if (!GetMonitorInfoW(monitor, ref info)) return;
-        // Move first so WPF receives the target monitor's DPI before final sizing.
-        SetWindowPos(hwnd, new nint(-1), message.Left, message.Bottom, 0, 0, 0x0010 | 0x0001);
+        if (!GetMonitorInfoW(monitor, ref info)) { Hide(); return; }
+        if (viewChanged) surface.SetView(message.View);
+        // Only move before sizing when crossing monitors to pick up the new DPI.
+        if (MonitorFromWindow(hwnd, 2) != monitor)
+            SetWindowPos(hwnd, new nint(-1), caret.Left, caret.Bottom, 0, 0, 0x0010 | 0x0001);
+        surface.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var scale = GetDpiForWindow(hwnd) / 96.0;
         var width = Math.Min(info.Work.Right - info.Work.Left, (int)Math.Ceiling(surface.DesiredSize.Width * scale));
         var height = Math.Min(info.Work.Bottom - info.Work.Top, (int)Math.Ceiling(surface.DesiredSize.Height * scale));
-        var x = Math.Clamp(message.Left, info.Work.Left, info.Work.Right - width);
-        var y = message.Bottom + height <= info.Work.Bottom ? message.Bottom : message.Top - height;
+        var x = Math.Clamp(caret.Left, info.Work.Left, info.Work.Right - width);
+        var y = caret.Bottom + height <= info.Work.Bottom ? caret.Bottom : caret.Top - height;
         y = Math.Clamp(y, info.Work.Top, info.Work.Bottom - height);
+        if (!visible)
+        {
+            SetWindowPos(hwnd, new nint(-1), x, y, width, height, 0x0010);
+            Show();
+        }
+        UpdateLayout();
         // StartupInfo may request SW_HIDE for a background process. Explicitly
         // show the HWND after WPF's first Show, without activating the editor.
         SetWindowPos(hwnd, new nint(-1), x, y, width, height, 0x0010 | 0x0040);
+        lastView = message.View;
+        lastCaret = caret;
+        presentedThemeRevision = themeRevision;
     }
     private void RefreshConfiguration()
     {
@@ -143,10 +180,15 @@ public sealed class WeaselHost : Window
             {
                 var theme = ThemeFiles.Load(Path.Combine(active, "theme.json"));
                 surface.SetTheme(theme, active); renderedTheme = theme.Name;
+                themeRevision++;
                 themeDirectory = active; configMonitor = new ThemeConfigMonitor(library, active);
             }
             var result = configMonitor?.Poll();
-            if (result?.Changed == true) { var theme = ThemeFiles.Load(Path.Combine(active, "theme.json")); surface.SetTheme(theme, active); renderedTheme = theme.Name; }
+            if (result?.Changed == true)
+            {
+                var theme = ThemeFiles.Load(Path.Combine(active, "theme.json"));
+                surface.SetTheme(theme, active); renderedTheme = theme.Name; themeRevision++;
+            }
             if (result?.Error != null) Debug.WriteLine("Theme reload kept last good frame: " + result.Error);
         }
         catch (Exception e) when (e is IOException or InvalidDataException or FormatException or JsonException or NotSupportedException or ArgumentException)
@@ -161,6 +203,7 @@ public sealed class WeaselHost : Window
     [DllImport("user32.dll")] private static extern nint SetWindowLongPtrW(nint hwnd, int index, nint value);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(nint hwnd, nint after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] private static extern nint MonitorFromRect(ref NativeRect rect, uint flags);
+    [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint hwnd, uint flags);
     [DllImport("user32.dll")] private static extern bool GetMonitorInfoW(nint monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint hwnd);
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(nint hwnd);

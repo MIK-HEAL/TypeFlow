@@ -15,9 +15,11 @@
 namespace typeflow {
 class Endpoint {
  public:
-  static Endpoint& Instance() { static Endpoint endpoint; return endpoint; }
-  explicit Endpoint(std::string source = "test") : source_(std::move(source)), worker_([this] { Run(); }) {}
-  bool Ready() const { return connected_.load(); }
+  static Endpoint& Instance() { static Endpoint endpoint("legacy"); return endpoint; }
+  explicit Endpoint(std::string source, std::wstring pipeName = {})
+      : source_(std::move(source)), pipeName_(std::move(pipeName)), worker_([this] { Run(); }) {}
+  bool Ready() const { return state_.load() == RenderState::Skin; }
+  bool UseNative() const { return state_.load() == RenderState::Native; }
   Endpoint(const Endpoint&) = delete;
   Endpoint& operator=(const Endpoint&) = delete;
   ~Endpoint() {
@@ -49,22 +51,35 @@ class Endpoint {
     }
     view += "]}";
     const bool visible = composing && view.size() <= 60000 && (!ctx.preedit.str.empty() || !menu.candies.empty());
+    bool useSkin;
     {
       std::lock_guard<std::mutex> lock(mutex_);
+      if (visible != visible_) {
+        ++generation_;
+        state_ = visible ? RenderState::Pending : RenderState::Native;
+      }
       view_ = std::move(view); visible_ = visible; Queue();
+      useSkin = visible && !UseNative();
     }
     changed_.notify_one();
-    return visible && connected_.load();
+    return useSkin;
   }
   void Position(const RECT& rect) {
     { std::lock_guard<std::mutex> lock(mutex_); rect_ = rect; Queue(); }
     changed_.notify_one();
   }
   void Hide() {
-    { std::lock_guard<std::mutex> lock(mutex_); visible_ = false; Queue(); }
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (visible_) ++generation_;
+      visible_ = false;
+      state_ = RenderState::Native;
+      Queue();
+    }
     changed_.notify_one();
   }
  private:
+  enum class RenderState { Native, Pending, Skin };
   static std::string Quote(const std::wstring& text) {
     const auto length = (std::min)(text.size(), size_t(4096));
     const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(length), nullptr, 0, nullptr, nullptr);
@@ -94,8 +109,9 @@ class Endpoint {
     if (message == WM_NCDESTROY) { endpoint->window_ = nullptr; endpoint->refresh_ = nullptr; RemoveWindowSubclass(window, WindowProc, id); }
     return DefSubclassProc(window, message, w, l);
   }
-  void Connected(bool value) {
-    if (connected_.exchange(value) != value) {
+  void SetState(RenderState value, unsigned generation) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (generation_ == generation && state_.exchange(value) != value) {
       if (HWND window = window_.load()) PostMessageW(window, WM_APP + 0x544, 0, 0);
     }
   }
@@ -114,12 +130,14 @@ class Endpoint {
   }
   void Run() {
     DWORD session = 0; ProcessIdToSessionId(GetCurrentProcessId(), &session);
-    const auto name = L"\\\\.\\pipe\\TypeFlow.Candidates.v2." + std::to_wstring(session);
+    const auto name = pipeName_.empty()
+        ? L"\\\\.\\pipe\\TypeFlow.Candidates.v2." + std::to_wstring(session) : pipeName_;
     HANDLE pipe = INVALID_HANDLE_VALUE;
     std::string last;
     while (true) {
       std::string message;
       bool visible = false;
+      unsigned generation;
       {
         std::unique_lock<std::mutex> lock(mutex_);
         changed_.wait_for(lock, std::chrono::milliseconds(250), [this] { return stop_ || !pending_.empty(); });
@@ -127,6 +145,7 @@ class Endpoint {
         message.swap(pending_);
         if (message.empty()) message = last;
         visible = visible_;
+        generation = generation_;
       }
       if (message.empty()) continue;
       // An inactive input context must neither take the single renderer pipe
@@ -138,30 +157,39 @@ class Endpoint {
           Transfer(pipe, &acknowledged, 1, true);
           CloseHandle(pipe); pipe = INVALID_HANDLE_VALUE;
         }
-        last.clear(); Connected(false); continue;
+        last.clear(); continue;
       }
       last = message;
-      if (pipe == INVALID_HANDLE_VALUE)
-        pipe = CreateFileW(name.c_str(), GENERIC_WRITE | GENERIC_READ, 0, nullptr, OPEN_EXISTING,
-            FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr);
-      if (pipe == INVALID_HANDLE_VALUE) { Connected(false); continue; }
+      if (pipe == INVALID_HANDLE_VALUE) {
+        const auto open = [&] {
+          return CreateFileW(name.c_str(), GENERIC_WRITE | GENERIC_READ, 0, nullptr, OPEN_EXISTING,
+              FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr);
+        };
+        pipe = open();
+        // Let the previous application finish its focus-loss handoff.
+        if (pipe == INVALID_HANDLE_VALUE && GetLastError() == ERROR_PIPE_BUSY &&
+            WaitNamedPipeW(name.c_str(), 40)) pipe = open();
+      }
+      if (pipe == INVALID_HANDLE_VALUE) { SetState(RenderState::Native, generation); continue; }
       char acknowledged = 0;
-      Connected(Transfer(pipe, message.data(), static_cast<DWORD>(message.size()), false) &&
-          Transfer(pipe, &acknowledged, 1, true) && acknowledged == '1');
-      if (!connected_) { CloseHandle(pipe); pipe = INVALID_HANDLE_VALUE; }
+      const bool shown = Transfer(pipe, message.data(), static_cast<DWORD>(message.size()), false) &&
+          Transfer(pipe, &acknowledged, 1, true) && acknowledged == '1';
+      SetState(shown ? RenderState::Skin : RenderState::Native, generation);
+      if (!shown) { CloseHandle(pipe); pipe = INVALID_HANDLE_VALUE; }
     }
     if (pipe != INVALID_HANDLE_VALUE) CloseHandle(pipe);
-    connected_ = false;
   }
   std::mutex mutex_;
   std::condition_variable changed_;
   bool stop_ = false, visible_ = false;
   RECT rect_{};
   std::string view_ = "null", pending_;
-  std::atomic<bool> connected_{false};
+  unsigned generation_ = 0;
+  std::atomic<RenderState> state_{RenderState::Native};
   std::atomic<HWND> window_{nullptr};
   std::function<void()> refresh_;
   std::string source_;
+  std::wstring pipeName_;
   std::thread worker_;
 };
 }

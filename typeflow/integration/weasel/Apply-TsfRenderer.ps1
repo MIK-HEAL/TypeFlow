@@ -56,8 +56,12 @@ STDMETHODIMP CCandidateList::Show(BOOL showCandidateWindow) {
     // This callback runs on the candidate's UI thread. A suspended context
     // must never resurrect itself when another app acquires the renderer.
     if (!_showRequested) return;
-    _ui->Refresh();
-    if (_renderer->Ready()) _ui->Hide(); else _ui->Show();
+    if (_renderer->UseNative()) {
+      _ui->Refresh();
+      _ui->Show();
+    } else {
+      _ui->Hide();
+    }
   });
 '@
     $code = Replace-Once $code '  _ui->Create(p);' $attach
@@ -66,6 +70,15 @@ STDMETHODIMP CCandidateList::Show(BOOL showCandidateWindow) {
 $code = $code.Replace("  _renderer->Detach();`n  _ui->Destroy", "  _showRequested = false; _renderer->Hide();`n  _renderer->Detach();`n  _ui->Destroy")
 # Avoid accumulating the explicit lifetime reset on repeated preparation.
 $code = $code.Replace("  _showRequested = false; _renderer->Hide();`n  _showRequested = false; _renderer->Hide();", '  _showRequested = false; _renderer->Hide();')
+# Migrate an already-prepared Alpha 3 source tree to the pending-render handshake.
+$code = $code.Replace("    _ui->Refresh();`n    if (_renderer->Ready()) _ui->Hide(); else _ui->Show();", @'
+    if (_renderer->UseNative()) {
+      _ui->Refresh();
+      _ui->Show();
+    } else {
+      _ui->Hide();
+    }
+'@)
 [IO.File]::WriteAllText($candidateFile, $code, [Text.UTF8Encoding]::new($false))
 $candidateHeader = Join-Path $root 'WeaselTSF/CandidateList.h'
 $text = [IO.File]::ReadAllText($candidateHeader)

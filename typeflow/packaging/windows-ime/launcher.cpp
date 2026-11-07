@@ -146,6 +146,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         } else if (desktopUser) {
             if (FAILED(start_as_desktop_user(root / L"TypeFlowImeLauncher.exe", enable, skinSettings)))
                 throw std::runtime_error("desktop shell");
+        } else if (skinSettings && !enable) {
+            run(root / L"skin" / L"TypeFlow.Desktop.exe", L"--settings", false);
         } else {
             const auto user = user_directory();
             const auto mutexName = L"Local\\TypeFlow.Ime.Initialize." + std::to_wstring(std::hash<std::wstring>{}(user.wstring()));

@@ -20,7 +20,7 @@ VIAddVersionKey /LANG=2052 "LegalCopyright" "TypeFlow contributors; Rime / Wease
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TEXT "安装 TypeFlow 拼音输入法，自动准备词库和输入服务。$\r$\n$\r$\n支持导入 SSF、编辑皮肤布局，并应用到系统候选窗。"
 !define MUI_FINISHPAGE_TITLE "TypeFlow 已安装"
-!define MUI_FINISHPAGE_TEXT "首次启动会自动准备拼音词库。$\r$\n$\r$\n使用 Win + 空格切换到 TypeFlow IME Preview。Shift 切换中英文。$\r$\n$\r$\n升级前已打开的应用可能仍加载旧输入法组件，请关闭并重新打开这些应用。"
+!define MUI_FINISHPAGE_TEXT "首次启动会自动准备拼音词库。$\r$\n$\r$\n使用 Win + 空格切换到 TypeFlow IME Preview。Shift 切换中英文。$\r$\n$\r$\n升级后请完全退出并重开浏览器。若桌面或资源管理器仍显示旧候选窗，请注销 Windows 后重新登录。"
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "启用 TypeFlow 并打开皮肤设置"
 !define MUI_FINISHPAGE_RUN_FUNCTION StartTypeFlow
@@ -111,6 +111,7 @@ Section "TypeFlow 输入法" Main
   SetRegView 32
   CreateDirectory "$SMPROGRAMS\TypeFlow 输入法"
   CreateShortCut "$SMPROGRAMS\TypeFlow 输入法\启动 TypeFlow.lnk" "$INSTDIR\TypeFlowImeLauncher.exe" "--enable"
+  CreateShortCut "$SMPROGRAMS\TypeFlow 输入法\输入法设定.lnk" "$INSTDIR\TypeFlowImeDeployer.exe"
   CreateShortCut "$SMPROGRAMS\TypeFlow 输入法\皮肤设置.lnk" "$INSTDIR\TypeFlowImeLauncher.exe" "--skin-settings"
   CreateShortCut "$SMPROGRAMS\TypeFlow 输入法\打开用户配置.lnk" "$INSTDIR\TypeFlowImeLauncher.exe" "--settings"
   CreateShortCut "$SMPROGRAMS\TypeFlow 输入法\重新部署.lnk" "$INSTDIR\TypeFlowImeDeployer.exe" "/deploy"
@@ -165,6 +166,7 @@ Section "Uninstall"
   SetRegView 32
   DeleteRegKey HKLM "${PACKAGE_KEY}"
   Delete "$SMPROGRAMS\TypeFlow 输入法\启动 TypeFlow.lnk"
+  Delete "$SMPROGRAMS\TypeFlow 输入法\输入法设定.lnk"
   Delete "$SMPROGRAMS\TypeFlow 输入法\皮肤设置.lnk"
   Delete "$SMPROGRAMS\TypeFlow 输入法\打开用户配置.lnk"
   Delete "$SMPROGRAMS\TypeFlow 输入法\重新部署.lnk"

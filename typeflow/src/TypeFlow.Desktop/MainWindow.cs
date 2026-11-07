@@ -118,9 +118,19 @@ public sealed class MainWindow : Window
         AllowDrop = true; DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length == 1) await Import(files[0]); };
     }
-    private void UpdateStatus() => engineStatus.Text = systemMode != null
-        ? $"{(systemModeEnabled?.Invoke() == true ? "正在使用自定义皮肤" : "正在使用原生候选窗")} · 下方可直接试打，上方为皮肤示例。"
-        : engine == null ? "引擎尚未加载；当前展示皮肤预览。运行时准备方式见 README。" : $"Rime 真实输入 · {(chinese ? "中文" : "英文")} · 空格选词 / 数字选词 / Esc 取消 / PageUp、PageDown 翻页";
+    private void UpdateStatus()
+    {
+        if (systemMode == null)
+        {
+            engineStatus.Text = engine == null ? "引擎尚未加载；当前展示皮肤预览。运行时准备方式见 README。"
+                : $"Rime 真实输入 · {(chinese ? "中文" : "英文")} · 空格选词 / 数字选词 / Esc 取消 / PageUp、PageDown 翻页";
+            return;
+        }
+
+        engineStatus.Text = systemModeEnabled?.Invoke() == true
+            ? "已启用皮肤候选窗。上方为所选皮肤的预览，下方可试打。"
+            : "当前使用原生候选窗。点击「应用到系统输入法」可启用所选皮肤。";
+    }
     private void ApplyTheme(string directory)
     {
         library.Validator.Validate(ThemeFiles.Load(Path.Combine(directory, "theme.json")), directory);

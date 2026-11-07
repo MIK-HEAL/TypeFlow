@@ -36,9 +36,46 @@ if ($block.IndexOf($call) -lt $block.IndexOf('Wow64DisableWow64FsRedirection')) 
 $modified += 'WeaselSetup/imesetup.cpp'
 $path = Join-Path $Source 'WeaselServer/WeaselServerApp.cpp'
 $text = [IO.File]::ReadAllText($path)
-$text = $text.Replace('std::bind(execute, dir / L"TypeFlowImeDeployer.exe", std::wstring()));',
-    '[dir] { return std::filesystem::exists(dir / L"skin" / L"TypeFlow.Desktop.exe") ? execute(dir / L"skin" / L"TypeFlow.Desktop.exe", std::wstring(L"--settings")) : execute(dir / L"TypeFlowImeDeployer.exe", std::wstring()); });')
+$nativeSettings = 'std::bind(execute, dir / L"TypeFlowImeDeployer.exe", std::wstring()));'
+$legacySettings = '[dir] { return std::filesystem::exists(dir / L"skin" / L"TypeFlow.Desktop.exe") ? execute(dir / L"skin" / L"TypeFlow.Desktop.exe", std::wstring(L"--settings")) : execute(dir / L"TypeFlowImeDeployer.exe", std::wstring()); });'
+$text = $text.Replace($legacySettings, $nativeSettings)
+if (-not $text.Contains('ID_WEASELTRAY_SKIN_SETTINGS')) {
+    if (-not $text.Contains($nativeSettings)) { throw 'Missing native input settings handler.' }
+    $skinHandler = @'
+
+  m_server.AddMenuHandler(
+      ID_WEASELTRAY_SKIN_SETTINGS,
+      std::bind(execute, dir / L"skin" / L"TypeFlow.Desktop.exe",
+                std::wstring(L"--settings")));
+'@
+    $text = $text.Replace($nativeSettings, $nativeSettings + $skinHandler)
+}
 [IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))
 $modified += 'WeaselServer/WeaselServerApp.cpp'
-[ordered]@{ patchVersion=1; files=@($modified | ForEach-Object { [ordered]@{ path=$_; sha256=(Get-FileHash -LiteralPath (Join-Path $Source $_) -Algorithm SHA256).Hash.ToLowerInvariant() } }) } |
+
+$path = Join-Path $Source 'WeaselServer/resource.h'
+$text = [IO.File]::ReadAllText($path)
+if (-not $text.Contains('ID_WEASELTRAY_SKIN_SETTINGS')) {
+    $text += "`n#define ID_WEASELTRAY_SKIN_SETTINGS     40017`n"
+    [IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))
+}
+$modified += 'WeaselServer/resource.h'
+
+$path = Join-Path $Source 'WeaselServer/WeaselServer.rc'
+$text = [IO.File]::ReadAllText($path).Replace("`r", '')
+if (-not $text.Contains('ID_WEASELTRAY_SKIN_SETTINGS')) {
+    $settingsItem = '(?m)^([ ]*MENUITEM "(输入法设定|輸入法設定|Settings) \(&S\)", +ID_WEASELTRAY_SETTINGS)$'
+    if ([regex]::Matches($text, $settingsItem).Count -ne 3) { throw 'Missing localized native settings menu items.' }
+    $text = [regex]::Replace($text, $settingsItem, [Text.RegularExpressions.MatchEvaluator]{
+        param($match)
+        $label = switch ($match.Groups[2].Value) {
+            '输入法设定' { '皮肤设置' }
+            '輸入法設定' { '面板主題設定' }
+            'Settings' { 'Skin settings' }
+        }
+        $match.Value + "`n        MENUITEM `"$label`",                  ID_WEASELTRAY_SKIN_SETTINGS"
+    })
+    [IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))
+}
+[ordered]@{ patchVersion=2; files=@($modified | ForEach-Object { [ordered]@{ path=$_; sha256=(Get-FileHash -LiteralPath (Join-Path $Source $_) -Algorithm SHA256).Hash.ToLowerInvariant() } }) } |
     ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Source 'TYPEFLOW_BUILD_PATCHES.json') -Encoding utf8

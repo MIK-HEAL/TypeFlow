@@ -110,6 +110,7 @@ public static class InstalledSkinApp
                     selectedTheme = ThemeFiles.Load(Path.Combine(library.ActiveDirectory, "theme.json")).Name,
                     selectedDirectory = library.ActiveDirectory, presentations = host.PresentationCount,
                     tsfPresentations = host.NativeTsfPresentationCount, sourcePid = host.LastSourcePid,
+                    recentTsfSources = host.RecentTsfSources,
                     presentedTheme = host.LastPresentedTheme, visible = host.NativeVisible,
                     rendererActivated = host.IsActive,
                     settingsVisible = settings != null && IsWindowVisible(new WindowInteropHelper(settings).Handle)

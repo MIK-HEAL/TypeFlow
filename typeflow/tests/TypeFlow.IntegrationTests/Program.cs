@@ -70,10 +70,13 @@ internal static class Program
             Check(library.ActiveDirectory == library.DefaultDirectory, "deleting active theme restores default");
             File.WriteAllText(Path.Combine(library.Root, "active.json"), "\"../escape\"");
             Check(library.ActiveDirectory == library.DefaultDirectory, "invalid active config falls back");
-            using (var pipe = new NamedPipeServerStream("TypeFlow.Candidates.v2." + Process.GetCurrentProcess().SessionId,
+            var pipeName = "TypeFlow.Candidates.Test." + Guid.NewGuid().ToString("N");
+            var senderInfo = new ProcessStartInfo(Path.Combine(repo, "typeflow/build/native/Release/typeflow_endpoint_smoke.exe"))
+                { UseShellExecute = false, CreateNoWindow = true };
+            senderInfo.ArgumentList.Add(pipeName);
+            using (var pipe = new NamedPipeServerStream(pipeName,
                 PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly))
-            using (var sender = Process.Start(new ProcessStartInfo(Path.Combine(repo, "typeflow/build/native/Release/typeflow_endpoint_smoke.exe"))
-                { UseShellExecute = false, CreateNoWindow = true })!)
+            using (var sender = Process.Start(senderInfo)!)
             using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
             {
                 pipe.WaitForConnectionAsync(timeout.Token).GetAwaiter().GetResult();
@@ -88,6 +91,14 @@ internal static class Program
                 }
                 File.WriteAllText(Path.Combine(evidence, "weasel-protocol.json"), JsonSerializer.Serialize(message, ThemeFiles.Json));
                 Check(message.View!.Candidates[0].Text == "你好" && message.Left == 400 && message.Bottom == 426, "native Weasel adapter protocol round trip");
+                CandidatePresentation? hidden;
+                do
+                {
+                    var line = reader.ReadLineAsync(timeout.Token).AsTask().GetAwaiter().GetResult();
+                    if (line == null) throw new Exception("Endpoint disconnected without hiding its presentation.");
+                    hidden = JsonSerializer.Deserialize<CandidatePresentation>(line, ThemeFiles.Json);
+                    pipe.WriteByte((byte)'1'); pipe.Flush();
+                } while (hidden?.Visible != false);
                 sender.WaitForExit(5000);
                 Check(sender.HasExited && sender.ExitCode == 0, "native sender exits cleanly");
             }
