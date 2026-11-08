@@ -23,6 +23,8 @@ internal static class Program
             if (args is ["--stop-host"]) return InstalledSkinApp.Run("stop");
             if (args is ["--host-status"]) return InstalledSkinApp.Run("status");
             if (args is ["--native-candidates"]) return InstalledSkinApp.Run("native");
+            if (args is ["--companion-on"]) return InstalledSkinApp.Run("companion-on");
+            if (args is ["--companion-off"]) return InstalledSkinApp.Run("companion-off");
             if (args is ["--apply-system-theme", var themeSource]) return InstalledSkinApp.Run("apply", themeSource);
             if (args.Length == 0 && File.Exists(Path.Combine(AppContext.BaseDirectory, "..", "TypeFlowImeServer.exe"))) return InstalledSkinApp.Run("settings");
             if (args is ["--validate", var config])

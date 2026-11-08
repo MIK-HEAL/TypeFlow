@@ -17,7 +17,7 @@ namespace TypeFlow.Desktop;
 public static class InstalledSkinApp
 {
     private sealed record Request(string Command, string? Source = null);
-    private sealed record SkinMode(bool Enabled = false);
+    private sealed record SkinMode(bool Enabled = false, bool CompanionEnabled = true);
     public static string Workspace => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TypeFlow", "Skins");
     private static string ControlPipe => "TypeFlow.Settings.v1." + Process.GetCurrentProcess().SessionId;
 
@@ -43,16 +43,22 @@ public static class InstalledSkinApp
                     new NativeThemeImporter().ImportAsync(path, destination).GetAwaiter().GetResult();
             }
             var modeFile = Path.Combine(Workspace, "system-skin.json");
-            bool Enabled()
+            SkinMode ReadMode()
             {
-                try { return JsonSerializer.Deserialize<SkinMode>(File.ReadAllText(modeFile), ThemeFiles.Json)?.Enabled == true; }
-                catch (Exception e) when (e is IOException or JsonException or ArgumentException) { return false; }
+                try { return JsonSerializer.Deserialize<SkinMode>(File.ReadAllText(modeFile), ThemeFiles.Json) ?? new(); }
+                catch (Exception e) when (e is IOException or JsonException or ArgumentException) { return new(); }
             }
-            void SetEnabled(bool enabled)
+            void SaveMode(SkinMode mode)
             {
                 var temporary = modeFile + ".tmp";
-                File.WriteAllText(temporary, JsonSerializer.Serialize(new SkinMode(enabled), ThemeFiles.Json));
+                File.WriteAllText(temporary, JsonSerializer.Serialize(mode, ThemeFiles.Json));
                 File.Move(temporary, modeFile, true);
+            }
+            bool Enabled() => ReadMode().Enabled;
+            bool CompanionEnabled() => ReadMode().CompanionEnabled;
+            void SetEnabled(bool enabled)
+            {
+                SaveMode(ReadMode() with { Enabled = enabled });
                 if (enabled) ActivateTypeFlow();
             }
             async void ActivateTypeFlow()
@@ -70,13 +76,20 @@ public static class InstalledSkinApp
             }
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var host = new WeaselHost(library, Enabled);
+            using var companion = new CompanionController(library, CompanionEnabled);
+            void SetCompanionEnabled(bool enabled)
+            {
+                SaveMode(ReadMode() with { CompanionEnabled = enabled });
+                companion.Refresh();
+            }
             MainWindow? settings = null;
             using var shutdown = new CancellationTokenSource();
             void ShowSettings()
             {
                 if (settings == null)
                 {
-                    settings = new MainWindow(library, AppContext.BaseDirectory, SetEnabled, Enabled);
+                    settings = new MainWindow(library, AppContext.BaseDirectory, SetEnabled, Enabled,
+                        SetCompanionEnabled, CompanionEnabled);
                     settings.Closed += (_, _) => settings = null;
                 }
                 settings.Show();
@@ -100,6 +113,8 @@ public static class InstalledSkinApp
                         library.Activate(entry); SetEnabled(true);
                         break;
                     case "native": SetEnabled(false); host.Hide(); break;
+                    case "companion-on": SetCompanionEnabled(true); break;
+                    case "companion-off": SetCompanionEnabled(false); break;
                     case "background": case "status": break;
                     case "stop":
                         break;
@@ -107,6 +122,8 @@ public static class InstalledSkinApp
                 }
                 return JsonSerializer.Serialize(new {
                     running = true, pid = Environment.ProcessId, customThemeEnabled = Enabled(),
+                    companionEnabled = CompanionEnabled(), companionVisible = companion.Visible,
+                    companionFrame = companion.FrameIndex, companionHovering = companion.Hovering,
                     selectedTheme = ThemeFiles.Load(Path.Combine(library.ActiveDirectory, "theme.json")).Name,
                     selectedDirectory = library.ActiveDirectory, presentations = host.PresentationCount,
                     tsfPresentations = host.NativeTsfPresentationCount, sourcePid = host.LastSourcePid,
@@ -143,11 +160,12 @@ public static class InstalledSkinApp
             app.Startup += async (_, _) =>
             {
                 host.Start();
+                companion.Refresh();
                 _ = ControlLoop();
                 try { _ = await Handle(new(command, source)); }
                 catch (Exception e) { MessageBox.Show(e.Message, "TypeFlow 皮肤", MessageBoxButton.OK, MessageBoxImage.Warning); }
             };
-            app.Exit += (_, _) => { shutdown.Cancel(); host.Close(); };
+            app.Exit += (_, _) => { shutdown.Cancel(); companion.Dispose(); host.Close(); };
             return app.Run();
         }
         finally { mutex.ReleaseMutex(); }

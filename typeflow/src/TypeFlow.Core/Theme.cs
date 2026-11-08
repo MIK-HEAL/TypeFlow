@@ -19,6 +19,7 @@ public sealed record ThemeLayer(string Id, string Image, string Name = "装饰�
     string Plane = "behindText", string Mode = "stretch", Insets? Slice = null,
     string HorizontalFill = "stretch", string VerticalFill = "stretch", bool Visible = true);
 public sealed record ThemeSelection(string TextColor = "#FFFFFFFF", string BackgroundColor = "#FF3B6EE8");
+public sealed record ThemeCompanion(string Idle, string? Hover = null);
 public sealed record Theme
 {
     [JsonPropertyName("$schema")]
@@ -36,6 +37,8 @@ public sealed record Theme
     public ThemeBackground Background { get; init; } = new();
     public ThemeSelection Selection { get; init; } = new();
     public ThemeLayer[] Layers { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThemeCompanion? Companion { get; init; }
     public Dictionary<string, JsonElement> Extensions { get; init; } = [];
 }
 
@@ -121,8 +124,14 @@ public static partial class ThemeFiles
             Fill(layer.HorizontalFill); Fill(layer.VerticalFill);
             if (layer.Slice is { } s) foreach (var v in new[] { s.Left, s.Top, s.Right, s.Bottom }) Number(v, 0, 2048);
         }
+        if (theme.Companion is { } companion)
+        {
+            foreach (var animation in CompanionAssets(companion))
+                if (!string.Equals(Path.GetExtension(animation), ".gif", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("桌面挂件需要 GIF 动画资源。");
+        }
         long bytes = 0;
-        foreach (var image in ReferencedImages(theme))
+        foreach (var image in ReferencedAssets(theme))
         {
             var p = AssetPath(root, image);
             if (!File.Exists(p)) throw new InvalidDataException($"皮肤缺少图片资源：{image}");
@@ -134,6 +143,10 @@ public static partial class ThemeFiles
     private static void Fill(string fill) { if (fill is not ("stretch" or "tile")) throw new NotSupportedException("填充方式必须是 stretch 或 tile。"); }
     public static IEnumerable<string> ReferencedImages(Theme theme) =>
         (theme.Background.Image is { } image ? new[] { image } : []).Concat(theme.Layers.Select(x => x.Image)).Distinct(StringComparer.OrdinalIgnoreCase);
+    public static IEnumerable<string> ReferencedAssets(Theme theme) =>
+        ReferencedImages(theme).Concat(theme.Companion is { } companion ? CompanionAssets(companion) : []).Distinct(StringComparer.OrdinalIgnoreCase);
+    private static IEnumerable<string> CompanionAssets(ThemeCompanion companion) =>
+        companion.Hover is { } hover ? [companion.Idle, hover] : [companion.Idle];
     public static Theme DeclareCapabilities(Theme theme)
     {
         var capabilities = new HashSet<string>(theme.RequiredCapabilities, StringComparer.Ordinal);

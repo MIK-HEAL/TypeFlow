@@ -17,14 +17,21 @@ try
     Check(imported.Report.Sha256 == "7d7ed80e39481bf754839ef9ea802798751c0e550c3a54ee4e2055cad3a0347d", "real fixture provenance");
     Check(imported.Theme.Text.Color == "#FFADB101" && imported.Theme.Selection.TextColor == "#FF71961B", "BGR to ARGB");
     Check(imported.Theme.Layout.PreeditMargin!.Left == 160 && imported.Theme.Layout.PreeditMargin.Top == 21, "SSF margin order");
-    Check(imported.Report.Compatibility == "partial" && imported.Report.Diagnostics.Any(x => x.Code == "animation") && imported.Report.Diagnostics.Any(x => x.Code == "invalid-slice"), "honest compatibility report");
+    Check(imported.Report.Compatibility == "partial" && imported.Report.Diagnostics.Any(x => x.Code == "companion") && imported.Report.Diagnostics.Any(x => x.Code == "invalid-slice"), "honest compatibility report");
     var loaded = ThemeFiles.Load(Path.Combine(imported.ThemeDirectory, "theme.json"));
     Check(loaded.Id == imported.Theme.Id && File.Exists(Path.Combine(imported.ThemeDirectory, "source/Skin.ini")), "standalone native theme");
+    Check(loaded.Companion is { Hover: not null } pet &&
+        GifAnimationInfo.Read(File.ReadAllBytes(ThemeFiles.AssetPath(imported.ThemeDirectory, pet.Idle))).Frames.Count == 65 &&
+        GifAnimationInfo.Read(File.ReadAllBytes(ThemeFiles.AssetPath(imported.ThemeDirectory, pet.Hover))).Frames.Count == 15,
+        "imports both SSF companion animations");
     await Reject<IOException>(() => importer.ImportAsync(sample, imported.ThemeDirectory), "no overwrite");
     var registry = new ImporterRegistry(); registry.Register(importer); registry.Register(new NativeThemeImporter());
     Check(registry.Resolve(sample).Info.Id == "typeflow.ssf" && registry.Resolve(imported.ThemeDirectory).Info.Id == "typeflow.native", "two import plugins");
     var native = await registry.Resolve(imported.ThemeDirectory).ImportAsync(imported.ThemeDirectory, Path.Combine(temp, "native"));
     Check(native.Theme.Id == imported.Theme.Id && File.Exists(Path.Combine(native.ThemeDirectory, "assets/background.png")), "native importer copies referenced image");
+    Check(native.Theme.Companion == loaded.Companion &&
+        File.Exists(ThemeFiles.AssetPath(native.ThemeDirectory, native.Theme.Companion!.Hover!)),
+        "native theme import retains companion animations");
 
     foreach (var entry in new[] { "../escape.png", "C:/escape.png", "assets\\..\\escape.png", "assets/name:stream", "assets/./image.png" })
     {
@@ -59,6 +66,8 @@ try
             var path = MakeZip(("SKIN.INI", bytes), ("SKIN1.PNG", image));
             var result = await importer.ImportAsync(path, Path.Combine(temp, Guid.NewGuid().ToString("N")));
             Check(result.Theme.Name == "尼古喵喵！", "encoding and case " + encoding.WebName);
+            Check(result.Theme.Companion == null && result.Report.Diagnostics.Any(x => x.Code == "companion-animation"),
+                "missing companion leaves the candidate skin import usable");
         }
     }
     var large = MakeZip(("huge.bin", new byte[17 * 1024 * 1024]));

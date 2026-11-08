@@ -32,7 +32,8 @@ public sealed class MainWindow : Window
     private bool configFailed;
     private readonly Action<bool>? systemMode;
     private readonly Func<bool>? systemModeEnabled;
-    public MainWindow(ThemeLibrary library, string productRoot, Action<bool>? systemMode = null, Func<bool>? systemModeEnabled = null)
+    public MainWindow(ThemeLibrary library, string productRoot, Action<bool>? systemMode = null, Func<bool>? systemModeEnabled = null,
+        Action<bool>? setCompanionEnabled = null, Func<bool>? companionEnabled = null)
     {
         this.library = library;
         this.systemMode = systemMode; this.systemModeEnabled = systemModeEnabled;
@@ -45,6 +46,13 @@ public sealed class MainWindow : Window
         DockPanel.SetDock(heading, Dock.Top); layout.Children.Add(heading);
         var subtitle = new TextBlock { Text = systemMode == null ? "导入皮肤，预览外观，再试一段输入。" : "导入或选择皮肤，点击应用后即可用于系统输入。", Foreground = Brushes.DimGray, Margin = new(0, 4, 0, 20) };
         DockPanel.SetDock(subtitle, Dock.Top); layout.Children.Add(subtitle);
+        if (setCompanionEnabled != null)
+        {
+            var toggle = new CheckBox { Content = "显示桌面挂件（当前皮肤包含挂件时）",
+                IsChecked = companionEnabled?.Invoke() ?? true, Margin = new(0, 0, 0, 12) };
+            toggle.Click += (_, _) => Guard(() => setCompanionEnabled(toggle.IsChecked == true));
+            DockPanel.SetDock(toggle, Dock.Top); layout.Children.Add(toggle);
+        }
         var sidebar = new DockPanel { Width = 230, Margin = new(0, 0, 22, 0) }; DockPanel.SetDock(sidebar, Dock.Left); layout.Children.Add(sidebar);
         var actions = new StackPanel();
         var actionScroll = new ScrollViewer { Content = actions, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };

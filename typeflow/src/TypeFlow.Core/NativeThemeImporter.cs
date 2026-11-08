@@ -16,7 +16,7 @@ public sealed class NativeThemeImporter : IThemeImporter
         try
         {
             // Copy only model-referenced resources. A data package never installs executable code.
-            foreach (var relative in ThemeFiles.ReferencedImages(theme))
+            foreach (var relative in ThemeFiles.ReferencedAssets(theme))
             {
                 var target = ThemeFiles.AssetPath(staging, relative);
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);

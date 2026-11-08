@@ -61,6 +61,15 @@
         ]
       }
     },
+    "companion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idle"],
+      "properties": {
+        "idle": { "type": "string", "pattern": "\\.[gG][iI][fF]$" },
+        "hover": { "type": ["string", "null"], "pattern": "\\.[gG][iI][fF]$" }
+      }
+    },
     "layout": {
       "$ref": "#/$defs/layout"
     },

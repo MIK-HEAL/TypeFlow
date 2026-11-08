@@ -10,7 +10,7 @@ namespace TypeFlow.Importers.Ssf;
 
 public sealed class SsfImporter : IThemeImporter
 {
-    public PluginInfo Info => new("typeflow.ssf", 1, "0.1.0", ["zip", "utf16", "utf8", "gb18030", "static-horizontal", "png"]);
+    public PluginInfo Info => new("typeflow.ssf", 1, "0.2.0", ["zip", "utf16", "utf8", "gb18030", "static-horizontal", "png", "companion-gif"]);
     public bool CanImport(string path)
     {
         if (!File.Exists(path)) return false;
@@ -84,9 +84,12 @@ public sealed class SsfImporter : IThemeImporter
             // SSF order is top,bottom,left,right (not CSS order).
             var preedit = new Insets(p[2], p[0], p[3], p[1]);
             var candidate = new Insets(c[2], c[0], c[3], c[1]);
-            if (ini.ContainsKey("StatusBar")) diagnostics.Add(new("status-bar", "未映射搜狗状态栏和自定义按钮；候选窗不受影响。"));
-            if (entries.Keys.Any(x => x.EndsWith(".gif", StringComparison.OrdinalIgnoreCase)))
-                diagnostics.Add(new("animation", "包内 GIF 动画未导入，原始 SSF 保持不变。"));
+            ThemeCompanion? companion = null;
+            if (ini.TryGetValue("StatusBar", out var statusBar))
+            {
+                companion = await ImportCompanion(statusBar, entries, configFolder, staging, diagnostics, cancellationToken);
+                diagnostics.Add(new("status-bar", "搜狗状态栏按钮及布局未映射；支持的自定义 GIF 独立显示为桌面挂件。"));
+            }
             if (ini.Keys.Any(x => x.Equals("Scheme_H2", StringComparison.OrdinalIgnoreCase) || x.StartsWith("Scheme_V", StringComparison.OrdinalIgnoreCase)))
                 diagnostics.Add(new("alternate-layouts", "仅映射 Scheme_H1 横排合窗口；分窗口与竖排未映射。"));
             if (Get("Display", "glow") == "1" || Get("Display", "aero") == "1")
@@ -104,6 +107,7 @@ public sealed class SsfImporter : IThemeImporter
                 Layout = new(Padding: new(0, 0, 0, 0), CandidateGap: 12, RowGap: 0,
                     MinWidth: width, MinHeight: height, PreeditMargin: preedit, CandidateMargin: candidate),
                 Background = new("assets/background.png", "nineSlice", slices, "#00000000"),
+                Companion = companion,
                 Extensions = new() { ["typeflow.ssf"] = JsonSerializer.SerializeToElement(new { encoding, original = ini }, ThemeFiles.Json) }
             };
             ThemeFiles.Save(theme, staging);
@@ -114,6 +118,45 @@ public sealed class SsfImporter : IThemeImporter
             return new(destination, theme, report);
         }
         catch { Directory.Delete(staging, true); throw; }
+    }
+
+    private static async Task<ThemeCompanion?> ImportCompanion(Dictionary<string, string> statusBar,
+        Dictionary<string, ZipArchiveEntry> entries, string configFolder, string staging,
+        List<Diagnostic> diagnostics, CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(statusBar.GetValueOrDefault("custom_cnt"), out var count)) return null;
+        for (var i = 0; i < Math.Clamp(count, 0, 16); i++)
+        {
+            var key = "custom" + i.ToString(CultureInfo.InvariantCulture);
+            if (statusBar.GetValueOrDefault(key + "_display") == "0") continue;
+            var idle = await SaveAnimation(key, "assets/companion-idle.gif");
+            if (idle == null) continue;
+            var hover = await SaveAnimation(key + "_hover", "assets/companion-hover.gif");
+            diagnostics.Add(new("companion", "已导入桌面挂件动画。", "info"));
+            return new(idle, hover);
+        }
+        return null;
+
+        async Task<string?> SaveAnimation(string key, string target)
+        {
+            if (!statusBar.TryGetValue(key, out var name) || string.IsNullOrWhiteSpace(name)) return null;
+            byte[] data;
+            try
+            {
+                var relative = configFolder + name.Replace('\\', '/');
+                _ = ThemeFiles.AssetPath(staging, relative);
+                if (!entries.TryGetValue(relative, out var entry)) throw new InvalidDataException("找不到动画文件。");
+                data = await Read(entry, GifAnimationInfo.MaxBytes, cancellationToken);
+                _ = GifAnimationInfo.Read(data);
+            }
+            catch (Exception e) when (e is InvalidDataException or EndOfStreamException)
+            {
+                diagnostics.Add(new("companion-animation", $"跳过 {key} 的挂件动画：{e.Message}"));
+                return null;
+            }
+            await File.WriteAllBytesAsync(ThemeFiles.AssetPath(staging, target), data, cancellationToken);
+            return target;
+        }
     }
 
     private static async Task<byte[]> Read(ZipArchiveEntry entry, int limit, CancellationToken ct)

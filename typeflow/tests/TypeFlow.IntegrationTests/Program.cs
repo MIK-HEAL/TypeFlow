@@ -25,6 +25,23 @@ internal static class Program
         {
             var library = DesktopComponents.CreateThemeLibrary(Path.Combine(temp, "workspace"));
             var imported = library.Import(Path.Combine(repo, "test/ssf/尼古喵喵！.ssf")).GetAwaiter().GetResult();
+            var pet = imported.Theme.Companion ?? throw new InvalidDataException("Expected an SSF companion.");
+            var idle = Task.Run(() => CompanionAnimation.Load(ThemeFiles.AssetPath(imported.ThemeDirectory, pet.Idle))).GetAwaiter().GetResult();
+            var hover = Task.Run(() => CompanionAnimation.Load(ThemeFiles.AssetPath(imported.ThemeDirectory, pet.Hover!))).GetAwaiter().GetResult();
+            Check(idle.Count == 65 && hover.Count == 15 && idle[0].Image.PixelWidth == 207 && hover[0].Image.PixelHeight == 245,
+                "both imported GIFs decode at their logical canvas size");
+            byte[] Pixels(CompanionFrame frame)
+            {
+                var stride = frame.Image.PixelWidth * 4;
+                var pixels = new byte[stride * frame.Image.PixelHeight];
+                frame.Image.CopyPixels(pixels, stride, 0);
+                return pixels;
+            }
+            var first = Pixels(idle[0]);
+            Check(first.Where((_, i) => i % 4 == 3).Contains((byte)0) &&
+                first.Where((_, i) => i % 4 == 3).Contains((byte)255) &&
+                idle.Skip(1).Any(frame => !Pixels(frame).AsSpan().SequenceEqual(first)),
+                "GIF composition preserves transparency and changing frames across threads");
             var surface = new CandidateSurface();
             using var engine = new RimeEngine(Path.Combine(repo, "typeflow/runtime/rime.dll"), Path.Combine(repo, "typeflow/rime-data"), Path.Combine(temp, "rime-user"), "luna_pinyin_simp");
             // Reject a second runtime without invalidating the first runtime's native pointers.

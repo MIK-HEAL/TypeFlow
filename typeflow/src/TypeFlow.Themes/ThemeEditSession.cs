@@ -36,7 +36,7 @@ public sealed class ThemeEditSession : IDisposable
         System.IO.Directory.CreateDirectory(Directory);
         try
         {
-            foreach (var relative in ThemeFiles.ReferencedImages(original))
+            foreach (var relative in ThemeFiles.ReferencedAssets(original))
             {
                 var target = ThemeFiles.AssetPath(Directory, relative);
                 System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
@@ -122,7 +122,7 @@ public sealed class ThemeEditSession : IDisposable
         System.IO.Directory.CreateDirectory(staging);
         try
         {
-            foreach (var relative in ThemeFiles.ReferencedImages(theme))
+            foreach (var relative in ThemeFiles.ReferencedAssets(theme))
             {
                 var target = ThemeFiles.AssetPath(staging, relative); System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 File.Copy(ThemeFiles.AssetPath(Directory, relative), target);

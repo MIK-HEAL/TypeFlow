@@ -28,7 +28,7 @@ public static class LinkedThemes
         var theme = ThemeFiles.Load(source);
         var rebased = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var sourceFiles = new List<string> { source };
-        foreach (var relative in ThemeFiles.ReferencedImages(theme))
+        foreach (var relative in ThemeFiles.ReferencedAssets(theme))
         {
             var inputPath = ThemeFiles.AssetPath(sourceDirectory, relative);
             sourceFiles.Add(inputPath);
@@ -52,7 +52,9 @@ public static class LinkedThemes
             Schema = theme.Schema is { } schema && !Uri.TryCreate(schema, UriKind.Absolute, out _)
                 ? new Uri(Path.GetFullPath(Path.Combine(sourceDirectory, schema))).AbsoluteUri : theme.Schema,
             Background = theme.Background.Image is { } sourceBackground ? theme.Background with { Image = rebased[sourceBackground] } : theme.Background,
-            Layers = theme.Layers.Select(x => x with { Image = rebased[x.Image] }).ToArray()
+            Layers = theme.Layers.Select(x => x with { Image = rebased[x.Image] }).ToArray(),
+            Companion = theme.Companion is { } companion
+                ? new(rebased[companion.Idle], companion.Hover is { } hover ? rebased[hover] : null) : null
         });
         ThemeFiles.Validate(theme, entry);
         validator.Validate(theme, entry);
@@ -99,7 +101,7 @@ public sealed class ThemeConfigMonitor(ThemeLibrary library, string entry)
             {
                 var model = ThemeFiles.Load(source);
                 library.Validator.Validate(model, entry);
-                sourceFiles = [source, .. ThemeFiles.ReferencedImages(model).Select(x => ThemeFiles.AssetPath(entry, x))];
+                sourceFiles = [source, .. ThemeFiles.ReferencedAssets(model).Select(x => ThemeFiles.AssetPath(entry, x))];
                 changed = true;
             }
             lastError = null; return new(changed, null);
