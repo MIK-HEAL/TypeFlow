@@ -26,6 +26,8 @@ public sealed class WeaselHost : Window
     private readonly DispatcherTimer configTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private nint hwnd;
     private readonly Func<bool> enabled;
+    private readonly Func<DesktopPreferences> preferences;
+    private DesktopPreferences? lastPreferences;
     private bool listening;
     private string renderedTheme = "";
     private CandidateView? lastView;
@@ -39,10 +41,11 @@ public sealed class WeaselHost : Window
     public string LastPresentedTheme { get; private set; } = "";
     public IReadOnlyDictionary<int, DateTimeOffset> RecentTsfSources => recentTsfSources;
     public bool NativeVisible => hwnd != 0 && IsWindowVisible(hwnd);
-    public WeaselHost(ThemeLibrary library, Func<bool>? enabled = null)
+    public WeaselHost(ThemeLibrary library, Func<bool>? enabled = null, Func<DesktopPreferences>? preferences = null)
     {
         this.library = library;
         this.enabled = enabled ?? (() => true);
+        this.preferences = preferences ?? (() => new());
         configTimer.Tick += (_, _) => RefreshConfiguration(); configTimer.Start();
         Title = "TypeFlow 候选窗"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true; Background = Brushes.Transparent; ShowInTaskbar = false; ShowActivated = false; Topmost = true;
@@ -142,11 +145,13 @@ public sealed class WeaselHost : Window
             caret = lastCaret;
         var viewChanged = lastView == null || message.View.Preedit != lastView.Preedit ||
             message.View.Highlighted != lastView.Highlighted || !message.View.Candidates.SequenceEqual(lastView.Candidates);
-        if (visible && !viewChanged && presentedThemeRevision == themeRevision && caret.Equals(lastCaret)) return;
+        var options = preferences().Normalize();
+        if (visible && !viewChanged && presentedThemeRevision == themeRevision && caret.Equals(lastCaret) && options == lastPreferences) return;
 
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
         if (!GetMonitorInfoW(monitor, ref info)) { Hide(); return; }
         if (viewChanged) surface.SetView(message.View);
+        surface.LayoutTransform = new ScaleTransform(options.CandidateScale, options.CandidateScale);
         // Only move before sizing when crossing monitors to pick up the new DPI.
         if (MonitorFromWindow(hwnd, 2) != monitor)
             SetWindowPos(hwnd, new nint(-1), caret.Left, caret.Bottom, 0, 0, 0x0010 | 0x0001);
@@ -154,9 +159,12 @@ public sealed class WeaselHost : Window
         var scale = GetDpiForWindow(hwnd) / 96.0;
         var width = Math.Min(info.Work.Right - info.Work.Left, (int)Math.Ceiling(surface.DesiredSize.Width * scale));
         var height = Math.Min(info.Work.Bottom - info.Work.Top, (int)Math.Ceiling(surface.DesiredSize.Height * scale));
-        var x = Math.Clamp(caret.Left, info.Work.Left, info.Work.Right - width);
-        var y = caret.Bottom + height <= info.Work.Bottom ? caret.Bottom : caret.Top - height;
-        y = Math.Clamp(y, info.Work.Top, info.Work.Bottom - height);
+        var position = CandidatePlacement.Locate(
+            new Rect(new Point(caret.Left, caret.Top), new Point(Math.Max(caret.Left, caret.Right), Math.Max(caret.Top, caret.Bottom))),
+            new Rect(info.Work.Left, info.Work.Top, info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top),
+            new Size(width, height), options.CandidateGap * scale, options.CandidatePlacement);
+        var x = (int)Math.Round(position.X);
+        var y = (int)Math.Round(position.Y);
         if (!visible)
         {
             SetWindowPos(hwnd, new nint(-1), x, y, width, height, 0x0010);
@@ -168,6 +176,7 @@ public sealed class WeaselHost : Window
         SetWindowPos(hwnd, new nint(-1), x, y, width, height, 0x0010 | 0x0040);
         lastView = message.View;
         lastCaret = caret;
+        lastPreferences = options;
         presentedThemeRevision = themeRevision;
     }
     private void RefreshConfiguration()

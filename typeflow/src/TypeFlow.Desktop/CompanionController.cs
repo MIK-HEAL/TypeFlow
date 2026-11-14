@@ -13,6 +13,9 @@ internal sealed class CompanionController : IDisposable
 {
     private readonly ThemeLibrary library;
     private readonly Func<bool> enabled;
+    private readonly Func<DesktopPreferences> preferences;
+    private readonly Action<Func<DesktopPreferences, DesktopPreferences>> save;
+    private readonly Action<string> action;
     private readonly DispatcherTimer timer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
     private string directory = "";
     private ThemeConfigMonitor? monitor;
@@ -21,10 +24,12 @@ internal sealed class CompanionController : IDisposable
     private bool refreshing;
     private bool disposed;
 
-    public CompanionController(ThemeLibrary library, Func<bool> enabled)
+    public CompanionController(ThemeLibrary library, Func<DesktopPreferences> preferences,
+        Action<Func<DesktopPreferences, DesktopPreferences>> save, Action<string> action)
     {
         this.library = library;
-        this.enabled = enabled;
+        this.preferences = preferences; this.save = save; this.action = action;
+        enabled = () => preferences().CompanionEnabled;
         timer.Tick += (_, _) => Refresh();
         timer.Start();
     }
@@ -32,6 +37,7 @@ internal sealed class CompanionController : IDisposable
     public bool Visible => window?.NativeVisible == true;
     public int FrameIndex => window?.FrameIndex ?? 0;
     public bool Hovering => window?.Hovering == true;
+    public void ResetPosition() => window?.ResetPosition();
 
     public async void Refresh()
     {
@@ -75,7 +81,7 @@ internal sealed class CompanionController : IDisposable
                     return (idleFrames, hoverFrames);
                 });
                 if (disposed || !selected.Equals(library.SelectedDirectory, ThemeFiles.FileSystemComparison)) return;
-                window ??= new CompanionWindow();
+                window ??= new CompanionWindow(preferences, save, action);
                 window.SetAnimations(idle, hover);
             }
             if (enabled()) window?.ShowCompanion();

@@ -1,0 +1,8 @@
+# TypeFlow's default scheme has a binary Simplified / Traditional switch.
+# Keep the upstream luna_pinyin scheme's four regional variants unchanged.
+patch:
+  switches/@2:
+    options: [zh_hant, zh_hans]
+    states: [繁體, 简体]
+    abbrev: [繁, 简]
+    reset: 1

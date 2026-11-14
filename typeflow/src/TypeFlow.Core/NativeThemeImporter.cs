@@ -5,6 +5,7 @@ namespace TypeFlow.Core;
 public sealed class NativeThemeImporter : IThemeImporter
 {
     public PluginInfo Info => new("typeflow.native", 1, "1.0.0", ["native-directory"]);
+    public ThemeImportSource Source => new("原生皮肤目录", Directory: true);
     public bool CanImport(string path) => Directory.Exists(path) && File.Exists(Path.Combine(path, "theme.json"));
     public Task<ImportResult> ImportAsync(string source, string destination, CancellationToken cancellationToken = default)
     {

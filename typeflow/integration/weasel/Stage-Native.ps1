@@ -53,6 +53,7 @@ Copy-Item -LiteralPath $runtime -Destination $stage -Force
 $data = Join-Path $stage 'data'
 $null = New-Item -ItemType Directory -Path $data -Force
 Copy-Item -Path (Join-Path $productRoot 'rime-data/*') -Destination $data -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $productRoot 'packaging/rime/luna_pinyin_simp.custom.yaml') -Destination $data -Force
 Copy-Item -LiteralPath (Join-Path $Source 'output/data/weasel.yaml') -Destination $data -Force
 Copy-Item -LiteralPath (Join-Path $Source 'LICENSE.txt') -Destination (Join-Path $stage 'WEASEL-LICENSE.txt') -Force
 Copy-Item -LiteralPath (Join-Path $productRoot 'THIRD_PARTY_NOTICES.md') -Destination $stage -Force

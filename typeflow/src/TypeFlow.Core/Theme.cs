@@ -20,6 +20,11 @@ public sealed record ThemeLayer(string Id, string Image, string Name = "装饰�
     string HorizontalFill = "stretch", string VerticalFill = "stretch", bool Visible = true);
 public sealed record ThemeSelection(string TextColor = "#FFFFFFFF", string BackgroundColor = "#FF3B6EE8");
 public sealed record ThemeCompanion(string Idle, string? Hover = null);
+// Portable presentation data. Importer-specific names, executable commands and URLs never enter this contract.
+public sealed record StatusVisual(string Image, string? Hover = null, string? Pressed = null);
+public sealed record StatusElement(string Id, string Label, double X, double Y, double Width, double Height,
+    StatusVisual[] States, string Action = "none");
+public sealed record ThemeStatusBar(double Width, double Height, StatusElement[] Elements);
 public sealed record Theme
 {
     [JsonPropertyName("$schema")]
@@ -39,6 +44,8 @@ public sealed record Theme
     public ThemeLayer[] Layers { get; init; } = [];
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ThemeCompanion? Companion { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThemeStatusBar? StatusBar { get; init; }
     public Dictionary<string, JsonElement> Extensions { get; init; } = [];
 }
 
@@ -130,6 +137,26 @@ public static partial class ThemeFiles
                 if (!string.Equals(Path.GetExtension(animation), ".gif", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("桌面挂件需要 GIF 动画资源。");
         }
+        if (theme.StatusBar is { } bar)
+        {
+            Number(bar.Width, 1, 2048); Number(bar.Height, 1, 1024);
+            if (bar.Elements == null || bar.Elements.Length > 32 || bar.Elements.Any(x => x == null) ||
+                bar.Elements.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != bar.Elements.Length)
+                throw new InvalidDataException("状态栏最多 32 个元素，标识必须唯一。");
+            foreach (var element in bar.Elements)
+            {
+                if (string.IsNullOrWhiteSpace(element.Id) || element.Id.Length > 100 || string.IsNullOrWhiteSpace(element.Label))
+                    throw new InvalidDataException("状态栏元素需要标识和名称。");
+                Number(element.X, 0, 2048); Number(element.Y, 0, 1024);
+                Number(element.Width, 1, 2048); Number(element.Height, 1, 1024);
+                if (element.X + element.Width > bar.Width || element.Y + element.Height > bar.Height)
+                    throw new InvalidDataException("状态栏元素超出画布。");
+                if (element.Action is not ("none" or "language" or "script" or "punctuation" or "width" or "voice" or "keyboard" or "settings" or "skins"))
+                    throw new InvalidDataException("状态栏动作不受支持。");
+                if (element.States == null || element.States.Length is < 1 or > 2 || element.States.Any(x => x == null))
+                    throw new InvalidDataException("状态栏元素需要 1–2 组图片状态。");
+            }
+        }
         long bytes = 0;
         foreach (var image in ReferencedAssets(theme))
         {
@@ -144,7 +171,10 @@ public static partial class ThemeFiles
     public static IEnumerable<string> ReferencedImages(Theme theme) =>
         (theme.Background.Image is { } image ? new[] { image } : []).Concat(theme.Layers.Select(x => x.Image)).Distinct(StringComparer.OrdinalIgnoreCase);
     public static IEnumerable<string> ReferencedAssets(Theme theme) =>
-        ReferencedImages(theme).Concat(theme.Companion is { } companion ? CompanionAssets(companion) : []).Distinct(StringComparer.OrdinalIgnoreCase);
+        ReferencedImages(theme).Concat(theme.Companion is { } companion ? CompanionAssets(companion) : [])
+            .Concat(theme.StatusBar is { } bar ? StatusAssets(bar) : []).Distinct(StringComparer.OrdinalIgnoreCase);
+    public static IEnumerable<string> StatusAssets(ThemeStatusBar bar) => bar.Elements.SelectMany(x => x.States)
+        .SelectMany(x => new[] { x.Image, x.Hover, x.Pressed }).Where(x => x != null).Select(x => x!).Distinct(StringComparer.OrdinalIgnoreCase);
     private static IEnumerable<string> CompanionAssets(ThemeCompanion companion) =>
         companion.Hover is { } hover ? [companion.Idle, hover] : [companion.Idle];
     public static Theme DeclareCapabilities(Theme theme)

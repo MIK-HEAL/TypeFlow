@@ -10,7 +10,8 @@ namespace TypeFlow.Importers.Ssf;
 
 public sealed class SsfImporter : IThemeImporter
 {
-    public PluginInfo Info => new("typeflow.ssf", 1, "0.2.0", ["zip", "utf16", "utf8", "gb18030", "static-horizontal", "png", "companion-gif"]);
+    public PluginInfo Info => new("typeflow.ssf", 1, "0.3.0", ["zip", "utf16", "utf8", "gb18030", "static-horizontal", "png", "companion-gif", "status-bar"]);
+    public ThemeImportSource Source => new("搜狗 SSF 转换插件", "搜狗皮肤 (*.ssf)|*.ssf");
     public bool CanImport(string path)
     {
         if (!File.Exists(path)) return false;
@@ -85,10 +86,15 @@ public sealed class SsfImporter : IThemeImporter
             var preedit = new Insets(p[2], p[0], p[3], p[1]);
             var candidate = new Insets(c[2], c[0], c[3], c[1]);
             ThemeCompanion? companion = null;
+            ThemeStatusBar? status = null;
             if (ini.TryGetValue("StatusBar", out var statusBar))
             {
                 companion = await ImportCompanion(statusBar, entries, configFolder, staging, diagnostics, cancellationToken);
-                diagnostics.Add(new("status-bar", "搜狗状态栏按钮及布局未映射；支持的自定义 GIF 独立显示为桌面挂件。"));
+                status = await SsfStatusBarTranslator.Translate(statusBar, async name => {
+                    var relative = configFolder + name.Replace('\\', '/');
+                    _ = ThemeFiles.AssetPath(staging, relative);
+                    return entries.TryGetValue(relative, out var entry) ? await Read(entry, 16 * 1024 * 1024, cancellationToken) : null;
+                }, staging, diagnostics, cancellationToken);
             }
             if (ini.Keys.Any(x => x.Equals("Scheme_H2", StringComparison.OrdinalIgnoreCase) || x.StartsWith("Scheme_V", StringComparison.OrdinalIgnoreCase)))
                 diagnostics.Add(new("alternate-layouts", "仅映射 Scheme_H1 横排合窗口；分窗口与竖排未映射。"));
@@ -108,8 +114,11 @@ public sealed class SsfImporter : IThemeImporter
                     MinWidth: width, MinHeight: height, PreeditMargin: preedit, CandidateMargin: candidate),
                 Background = new("assets/background.png", "nineSlice", slices, "#00000000"),
                 Companion = companion,
-                Extensions = new() { ["typeflow.ssf"] = JsonSerializer.SerializeToElement(new { encoding, original = ini }, ThemeFiles.Json) }
+                StatusBar = status
             };
+            // Provenance stays beside the native package, never in the runtime theme contract.
+            await File.WriteAllTextAsync(Path.Combine(staging, "source/conversion.json"),
+                JsonSerializer.Serialize(new { plugin = Info, encoding, original = ini }, ThemeFiles.Json), cancellationToken);
             ThemeFiles.Save(theme, staging);
             var report = new ImportReport(Info.Id, Path.GetFileName(source), hash, diagnostics.Any(d => d.Severity == "warning") ? "partial" : "complete", diagnostics);
             await File.WriteAllTextAsync(Path.Combine(staging, "import-report.json"), JsonSerializer.Serialize(report, ThemeFiles.Json), cancellationToken);

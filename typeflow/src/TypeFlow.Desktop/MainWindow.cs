@@ -33,7 +33,9 @@ public sealed class MainWindow : Window
     private readonly Action<bool>? systemMode;
     private readonly Func<bool>? systemModeEnabled;
     public MainWindow(ThemeLibrary library, string productRoot, Action<bool>? systemMode = null, Func<bool>? systemModeEnabled = null,
-        Action<bool>? setCompanionEnabled = null, Func<bool>? companionEnabled = null)
+        Action<bool>? setCompanionEnabled = null, Func<bool>? companionEnabled = null,
+        Func<DesktopPreferences>? preferences = null, Action<Func<DesktopPreferences, DesktopPreferences>>? savePreferences = null,
+        Action? resetCompanionPosition = null)
     {
         this.library = library;
         this.systemMode = systemMode; this.systemModeEnabled = systemModeEnabled;
@@ -51,7 +53,13 @@ public sealed class MainWindow : Window
             var toggle = new CheckBox { Content = "显示桌面挂件（当前皮肤包含挂件时）",
                 IsChecked = companionEnabled?.Invoke() ?? true, Margin = new(0, 0, 0, 12) };
             toggle.Click += (_, _) => Guard(() => setCompanionEnabled(toggle.IsChecked == true));
-            DockPanel.SetDock(toggle, Dock.Top); layout.Children.Add(toggle);
+            Activated += (_, _) => toggle.IsChecked = companionEnabled?.Invoke() ?? true;
+            var companionSettings = new StackPanel { Orientation = Orientation.Horizontal };
+            companionSettings.Children.Add(toggle);
+            if (preferences != null && savePreferences != null)
+                AddButton(companionSettings, "挂件操作与候选窗位置…", () =>
+                    new DesktopPreferencesWindow(preferences, savePreferences, resetCompanionPosition ?? (() => { })) { Owner = this }.ShowDialog());
+            DockPanel.SetDock(companionSettings, Dock.Top); layout.Children.Add(companionSettings);
         }
         var sidebar = new DockPanel { Width = 230, Margin = new(0, 0, 22, 0) }; DockPanel.SetDock(sidebar, Dock.Left); layout.Children.Add(sidebar);
         var actions = new StackPanel();

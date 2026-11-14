@@ -35,6 +35,7 @@ Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination (Join-Path $payl
 Copy-Item -LiteralPath (Join-Path $product 'LICENSE') -Destination (Join-Path $payload 'TYPEFLOW-LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $preview 'TYPEFLOW_NATIVE_SOURCE.json') -Destination $payload
 Copy-Item -LiteralPath (Join-Path $preview 'data') -Destination $payload -Recurse
+Copy-Item -LiteralPath (Join-Path $product 'packaging/rime/luna_pinyin_simp.custom.yaml') -Destination (Join-Path $payload 'data') -Force
 $nativePackaging = Join-Path $product 'packaging/windows-ime'
 Copy-Item -LiteralPath (Join-Path $nativePackaging 'README.txt') -Destination $payload
 $skin = Join-Path $payload 'skin'
@@ -100,6 +101,7 @@ $null = New-Item -ItemType Directory -Path (Join-Path $sourceBundle '.cache/type
 Copy-Item -LiteralPath (Join-Path $repo '.cache/typeflow/reference/weasel-0.17.4.zip') -Destination (Join-Path $sourceBundle '.cache/typeflow/reference')
 Copy-Item -LiteralPath (Join-Path $product 'integration/weasel') -Destination (Join-Path $sourceBundle 'typeflow/integration') -Recurse
 Copy-Item -LiteralPath $nativePackaging -Destination (Join-Path $sourceBundle 'typeflow/packaging') -Recurse
+Copy-Item -LiteralPath (Join-Path $product 'packaging/rime') -Destination (Join-Path $sourceBundle 'typeflow/packaging') -Recurse
 foreach ($script in @('Package-WindowsIme.ps1','Test-WindowsImeInstaller.ps1','Prepare-WindowsImeInstallerTools.ps1','Prepare-Runtime.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $script) -Destination (Join-Path $sourceBundle 'typeflow/scripts')
 }

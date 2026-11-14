@@ -17,7 +17,6 @@ namespace TypeFlow.Desktop;
 public static class InstalledSkinApp
 {
     private sealed record Request(string Command, string? Source = null);
-    private sealed record SkinMode(bool Enabled = false, bool CompanionEnabled = true);
     public static string Workspace => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TypeFlow", "Skins");
     private static string ControlPipe => "TypeFlow.Settings.v1." + Process.GetCurrentProcess().SessionId;
 
@@ -43,22 +42,13 @@ public static class InstalledSkinApp
                     new NativeThemeImporter().ImportAsync(path, destination).GetAwaiter().GetResult();
             }
             var modeFile = Path.Combine(Workspace, "system-skin.json");
-            SkinMode ReadMode()
-            {
-                try { return JsonSerializer.Deserialize<SkinMode>(File.ReadAllText(modeFile), ThemeFiles.Json) ?? new(); }
-                catch (Exception e) when (e is IOException or JsonException or ArgumentException) { return new(); }
-            }
-            void SaveMode(SkinMode mode)
-            {
-                var temporary = modeFile + ".tmp";
-                File.WriteAllText(temporary, JsonSerializer.Serialize(mode, ThemeFiles.Json));
-                File.Move(temporary, modeFile, true);
-            }
+            var preferences = new DesktopPreferenceStore(modeFile);
+            DesktopPreferences ReadMode() => preferences.Read();
             bool Enabled() => ReadMode().Enabled;
             bool CompanionEnabled() => ReadMode().CompanionEnabled;
             void SetEnabled(bool enabled)
             {
-                SaveMode(ReadMode() with { Enabled = enabled });
+                preferences.Update(p => p with { Enabled = enabled });
                 if (enabled) ActivateTypeFlow();
             }
             async void ActivateTypeFlow()
@@ -75,21 +65,23 @@ public static class InstalledSkinApp
                 catch (Exception e) { MessageBox.Show(e.Message, "TypeFlow", MessageBoxButton.OK, MessageBoxImage.Warning); }
             }
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            var host = new WeaselHost(library, Enabled);
-            using var companion = new CompanionController(library, CompanionEnabled);
+            MainWindow? settings = null;
+            var host = new WeaselHost(library, Enabled, ReadMode);
+            Action showSettings = () => { };
+            using var companion = new CompanionController(library, ReadMode, preferences.Update,
+                action => CompanionActions.Execute(action, showSettings));
             void SetCompanionEnabled(bool enabled)
             {
-                SaveMode(ReadMode() with { CompanionEnabled = enabled });
+                preferences.Update(p => p with { CompanionEnabled = enabled });
                 companion.Refresh();
             }
-            MainWindow? settings = null;
             using var shutdown = new CancellationTokenSource();
             void ShowSettings()
             {
                 if (settings == null)
                 {
                     settings = new MainWindow(library, AppContext.BaseDirectory, SetEnabled, Enabled,
-                        SetCompanionEnabled, CompanionEnabled);
+                        SetCompanionEnabled, CompanionEnabled, ReadMode, preferences.Update, companion.ResetPosition);
                     settings.Closed += (_, _) => settings = null;
                 }
                 settings.Show();
@@ -97,6 +89,7 @@ public static class InstalledSkinApp
                 ShowWindow(new WindowInteropHelper(settings).EnsureHandle(), 5);
                 settings.Activate();
             }
+            showSettings = ShowSettings;
             async Task<string> Handle(Request request)
             {
                 switch (request.Command)

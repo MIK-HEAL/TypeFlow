@@ -44,6 +44,7 @@ foreach ($id in @('luna-pinyin','prelude','essay')) {
     }
 }
 [IO.File]::WriteAllText((Join-Path $data 'default.custom.yaml'), "patch:`n  schema_list:`n    - schema: luna_pinyin_simp`n", [Text.UTF8Encoding]::new($false))
+Copy-Item -LiteralPath (Join-Path $product 'packaging/rime/luna_pinyin_simp.custom.yaml') -Destination $data -Force
 Copy-Item -LiteralPath (Join-Path $product 'sources.json') -Destination (Join-Path $runtime 'sources.json')
 Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination (Join-Path $runtime 'librime-LICENSE')
 Copy-Item -LiteralPath (Join-Path $product 'THIRD_PARTY_NOTICES.md') -Destination $runtime

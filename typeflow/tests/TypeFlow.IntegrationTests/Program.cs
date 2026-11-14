@@ -16,6 +16,7 @@ internal static class Program
     public static int Main(string[] args)
     {
         var repo = Path.GetFullPath(args[0]);
+        if (args.Contains("--ui-preview")) return DesktopInteractionTests.Preview(repo);
         var evidence = Path.Combine(repo, "typeflow/build/evidence"); Directory.CreateDirectory(evidence);
         var temp = Path.Combine(repo, "typeflow/build/integration-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp);
@@ -43,6 +44,8 @@ internal static class Program
                 idle.Skip(1).Any(frame => !Pixels(frame).AsSpan().SequenceEqual(first)),
                 "GIF composition preserves transparency and changing frames across threads");
             var surface = new CandidateSurface();
+            Directory.CreateDirectory(Path.Combine(temp, "rime-user"));
+            File.Copy(Path.Combine(repo, "typeflow/packaging/rime/luna_pinyin_simp.custom.yaml"), Path.Combine(temp, "rime-user/luna_pinyin_simp.custom.yaml"));
             using var engine = new RimeEngine(Path.Combine(repo, "typeflow/runtime/rime.dll"), Path.Combine(repo, "typeflow/rime-data"), Path.Combine(temp, "rime-user"), "luna_pinyin_simp");
             // Reject a second runtime without invalidating the first runtime's native pointers.
             try
@@ -83,6 +86,7 @@ internal static class Program
             engine.ProcessKey('n'); engine.Clear(); Check(engine.View.Preedit.Length == 0, "clear composition");
             passed += LayoutTests.Run(repo, temp, library, imported.ThemeDirectory, engine);
             passed += LinkedConfigTests.Run(repo, temp, library, engine);
+            passed += DesktopInteractionTests.Run(engine);
             library.Delete(imported.ThemeDirectory);
             Check(library.ActiveDirectory == library.DefaultDirectory, "deleting active theme restores default");
             File.WriteAllText(Path.Combine(library.Root, "active.json"), "\"../escape\"");

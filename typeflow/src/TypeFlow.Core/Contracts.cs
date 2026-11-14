@@ -5,9 +5,11 @@ public sealed record Diagnostic(string Code, string Message, string Severity = "
 public sealed record ImportReport(string PluginId, string SourceName, string Sha256,
     string Compatibility, IReadOnlyList<Diagnostic> Diagnostics);
 public sealed record ImportResult(string ThemeDirectory, Theme Theme, ImportReport Report);
+public sealed record ThemeImportSource(string Label, string? FileFilter = null, bool Directory = false);
 public interface IThemeImporter
 {
     PluginInfo Info { get; }
+    ThemeImportSource Source => new(Info.Id);
     bool CanImport(string path);
     Task<ImportResult> ImportAsync(string source, string destination, CancellationToken cancellationToken = default);
 }
